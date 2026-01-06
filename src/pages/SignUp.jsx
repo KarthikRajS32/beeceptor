@@ -6,7 +6,7 @@ import Header from "../components/layouts/Header";
 import Footer from "../components/layouts/Footer";
 import { Eye, EyeOff } from "lucide-react";
 
-const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
+const SignUp = ({ onLoginClick, onSignUpSuccess, isAuthenticated = false, user = null, onLogout }) => {
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -84,13 +84,38 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
       // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // Mock successful signup
+      // Get existing users from localStorage
+      const existingUsers = JSON.parse(localStorage.getItem('beeceptor_users') || '[]');
+      
+      // Check if user already exists
+      const userExists = existingUsers.find(user => user.email === formData.email);
+      if (userExists) {
+        setErrors({
+          submit: "An account with this email already exists. Please sign in instead.",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Create new user
+      const newUser = {
+        id: `user_${Date.now()}`,
+        fullName: formData.fullName,
+        email: formData.email,
+        password: formData.password, // In real app, this would be hashed
+        createdAt: new Date().toISOString(),
+      };
+
+      // Save user to localStorage
+      const updatedUsers = [...existingUsers, newUser];
+      localStorage.setItem('beeceptor_users', JSON.stringify(updatedUsers));
+
       console.log("Signup successful:", {
         fullName: formData.fullName,
         email: formData.email,
       });
 
-      // Redirect to login page
+      // Navigate to login page after successful signup
       if (onLoginClick) {
         onLoginClick();
       }
@@ -104,23 +129,23 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0E14] flex flex-col">
-      <Header onLoginClick={onLoginClick} onSignUpClick={() => {}} />
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <Header onLoginClick={onLoginClick} onSignUpClick={() => {}} isAuthenticated={isAuthenticated} user={user} onLogout={onLogout} />
 
       {/* Main Signup Section */}
-      <section className="flex-1 flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 bg-slate-800 relative overflow-hidden pt-24 pb-16">
+      <section className="flex-1 flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 bg-gray-50 relative overflow-hidden pt-34 pb-16">
         {/* Background Glow Effect */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-900/20 rounded-full blur-[100px] pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-100/30 rounded-full blur-[100px] pointer-events-none"></div>
 
         <div className="w-full max-w-md relative z-10">
           {/* Signup Card */}
-          <div className="bg-[#151b2b] border border-[#1f293a] rounded-2xl p-8 md:p-10 shadow-2xl">
+          <div className="bg-white border border-gray-200 rounded-lg p-8 md:p-10 shadow-lg">
             {/* Header */}
             <div className="text-center mb-8">
-              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 tracking-tight">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2 tracking-tight">
                 Create Your Account
               </h1>
-              <p className="text-gray-400 font-light">
+              <p className="text-gray-800">
                 Start mocking APIs in seconds
               </p>
             </div>
@@ -129,7 +154,7 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Full Name Input */}
               <div>
-                <label htmlFor="fullName" className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="fullName" className="block text-sm font-medium text-gray-900 mb-2">
                   Full Name
                 </label>
                 <input
@@ -138,7 +163,7 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
                   name="fullName"
                   value={formData.fullName}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 bg-[#0B0E14] border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-[#7e57ffff] focus:ring-1 focus:ring-[#7e57ffff] transition-colors"
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-700 rounded-lg  placeholder:text-gray-500 focus:outline-none focus:border-[#7e57ffff] focus:ring-1 focus:ring-[#7e57ffff] transition-colors"
                   placeholder="John Doe"
                 />
                 {errors.fullName && (
@@ -148,7 +173,7 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
 
               {/* Email Input */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-900 mb-2">
                   Email Address
                 </label>
                 <input
@@ -157,7 +182,7 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 bg-[#0B0E14] border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-[#7e57ffff] focus:ring-1 focus:ring-[#7e57ffff] transition-colors"
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-700 rounded-lg  placeholder:text-gray-500 focus:outline-none focus:border-[#7e57ffff] focus:ring-1 focus:ring-[#7e57ffff] transition-colors"
                   placeholder="john@example.com"
                 />
                 {errors.email && (
@@ -167,7 +192,7 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
 
               {/* Password Input */}
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-900 mb-2">
                   Password
                 </label>
                 <div className="relative">
@@ -177,13 +202,13 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 bg-[#0B0E14] border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-[#7e57ffff] focus:ring-1 focus:ring-[#7e57ffff] transition-colors pr-12"
+                    className="w-full px-4 py-3 bg-gray-100 border border-gray-700 rounded-lg  placeholder:text-gray-500 focus:outline-none focus:border-[#7e57ffff] focus:ring-1 focus:ring-[#7e57ffff] transition-colors pr-12"
                     placeholder="••••••••"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-900 transition-colors"
                   >
                     {showPassword ? (
                       <EyeOff className="w-5 h-5" />
@@ -199,7 +224,7 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
 
               {/* Confirm Password Input */}
               <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-900 mb-2">
                   Confirm Password
                 </label>
                 <div className="relative">
@@ -209,13 +234,13 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 bg-[#0B0E14] border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-[#7e57ffff] focus:ring-1 focus:ring-[#7e57ffff] transition-colors pr-12"
+                    className="w-full px-4 py-3 bg-gray-100 border border-gray-700 rounded-lg  placeholder:text-gray-500 focus:outline-none focus:border-[#7e57ffff] focus:ring-1 focus:ring-[#7e57ffff] transition-colors pr-12"
                     placeholder="••••••••"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-900 transition-colors"
                   >
                     {showConfirmPassword ? (
                       <EyeOff className="w-5 h-5" />
@@ -252,26 +277,26 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
                 <div className="w-full border-t border-gray-700"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-[#151b2b] text-gray-400">or</span>
+                <span className="px-4 bg-gray-200 text-gray-900">or</span>
               </div>
             </div>
 
             {/* Login Link */}
             <div className="text-center">
-              <p className="text-gray-400 text-sm">
+              <p className="text-gray-700 text-sm">
                 Already have an account?{" "}
                 <button
                   type="button"
                   onClick={onLoginClick}
-                  className="text-[#7e57ffff] hover:text-[#6334ffff] font-medium transition-colors"
+                  className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
                 >
-                  Sign in
+                  Login
                 </button>
               </p>
             </div>
 
             {/* Terms */}
-            <p className="text-center text-xs text-gray-500 mt-6">
+            {/* <p className="text-center text-xs text-gray-500 mt-6">
               By signing up, you agree to our{" "}
               <a href="#" className="text-gray-400 hover:text-[#7e57ffff] transition-colors">
                 Terms of Service
@@ -280,7 +305,7 @@ const SignUp = ({ onLoginClick, onSignUpSuccess }) => {
               <a href="#" className="text-gray-400 hover:text-[#7e57ffff] transition-colors">
                 Privacy Policy
               </a>
-            </p>
+            </p> */}
           </div>
         </div>
       </section>

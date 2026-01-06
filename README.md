@@ -1,16 +1,64 @@
-# React + Vite
+# Beeceptor Clone - Mock API Testing
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A Beeceptor-like application for creating and testing mock APIs locally.
 
-Currently, two official plugins are available:
+## Setup Instructions
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 1. Install Server Dependencies
+```bash
+cd server
+npm install
+```
 
-## React Compiler
+### 2. Start the Backend Server
+```bash
+cd server
+npm start
+```
+The server will run on http://localhost:3001
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 3. Start the Frontend (in a new terminal)
+```bash
+npm run dev
+```
+The frontend will run on http://localhost:5173
 
-## Expanding the ESLint configuration
+## How to Use
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. **Create a Project**: Click "Create New Project" and give it a name (e.g., "demo")
+
+2. **Add Endpoints**: 
+   - Click on your project to view details
+   - Click "Create New Endpoint"
+   - Configure your endpoint:
+     - Method: GET, POST, PUT, DELETE, etc.
+     - Path: /users, /api/data, etc.
+     - Response delay, status code, headers, and body
+
+3. **Test Your Endpoints**:
+   - After creating an endpoint, you'll see a test URL in the endpoint table
+   - Click the test button or visit the URL directly in your browser
+   - Example: http://localhost:3001/demo/users
+
+## Example Usage
+
+1. Create project named "demo"
+2. Add GET endpoint "/users" with response body:
+   ```json
+   {
+     "users": [
+       {"id": 1, "name": "John Doe"},
+       {"id": 2, "name": "Jane Smith"}
+     ]
+   }
+   ```
+3. Visit http://localhost:3001/demo/users to see your mock response
+
+## Features
+
+- ✅ Create projects and endpoints
+- ✅ Configure HTTP method, path, status, headers, body, and delay
+- ✅ Test endpoints directly in browser
+- ✅ Real-time mock API responses
+- ✅ Beeceptor-style URL structure
+- ✅ In-memory endpoint storage

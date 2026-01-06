@@ -3,7 +3,7 @@ import Header from "../components/layouts/Header";
 import Footer from "../components/layouts/Footer";
 import { Eye, EyeOff } from "lucide-react";
 
-const Login = ({ onSignUpClick, onLoginSuccess }) => {
+const Login = ({ onSignUpClick, onLoginSuccess, isAuthenticated = false, user = null, onLogout }) => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -63,18 +63,34 @@ const Login = ({ onSignUpClick, onLoginSuccess }) => {
       // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      // Mock successful login
-      const mockUser = {
-        email: formData.email,
-        name: formData.email.split("@")[0],
-        id: "user_" + Date.now(),
+      // Get users from localStorage
+      const existingUsers = JSON.parse(localStorage.getItem('beeceptor_users') || '[]');
+      
+      // Find user with matching email and password
+      const user = existingUsers.find(u => 
+        u.email === formData.email && u.password === formData.password
+      );
+
+      if (!user) {
+        setErrors({
+          submit: "Invalid email or password. Please try again.",
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Create user data for session
+      const userData = {
+        id: user.id,
+        email: user.email,
+        name: user.fullName,
       };
 
-      console.log("Login successful:", mockUser);
+      console.log("Login successful:", userData);
 
       // Call success callback with user data
       if (onLoginSuccess) {
-        onLoginSuccess(mockUser);
+        onLoginSuccess(userData);
       }
     } catch (error) {
       setErrors({
@@ -86,23 +102,23 @@ const Login = ({ onSignUpClick, onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0E14] flex flex-col">
-      <Header onLoginClick={() => {}} onSignUpClick={onSignUpClick} />
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <Header onLoginClick={() => {}} onSignUpClick={onSignUpClick} isAuthenticated={isAuthenticated} user={user} onLogout={onLogout} />
 
       {/* Main Login Section */}
-      <section className="flex-1 flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 bg-slate-800 relative overflow-hidden pt-24 pb-16">
+      <section className="flex-1 flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 bg-gray-50 relative overflow-hidden pt-34 pb-16">
         {/* Background Glow Effect */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-900/20 rounded-full blur-[100px] pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-100/30 rounded-full blur-[100px] pointer-events-none"></div>
 
         <div className="w-full max-w-md relative z-10">
           {/* Login Card */}
-          <div className="bg-[#151b2b] border border-[#1f293a] rounded-2xl p-8 md:p-10 shadow-2xl">
+          <div className="bg-white border border-gray-200 rounded-lg p-8 md:p-10 shadow-lg">
             {/* Header */}
             <div className="text-center mb-8">
-              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 tracking-tight">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2 tracking-tight">
                 Welcome Back
               </h1>
-              <p className="text-gray-400 font-light">
+              <p className="text-gray-700 ">
                 Sign in to continue to your dashboard
               </p>
             </div>
@@ -111,7 +127,7 @@ const Login = ({ onSignUpClick, onLoginSuccess }) => {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Email Input */}
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-900 mb-2">
                   Email Address
                 </label>
                 <input
@@ -120,7 +136,7 @@ const Login = ({ onSignUpClick, onLoginSuccess }) => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 bg-[#0B0E14] border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-[#7e57ffff] focus:ring-1 focus:ring-[#7e57ffff] transition-colors"
+                  className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                   placeholder="john@example.com"
                 />
                 {errors.email && (
@@ -130,7 +146,7 @@ const Login = ({ onSignUpClick, onLoginSuccess }) => {
 
               {/* Password Input */}
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-900 mb-2">
                   Password
                 </label>
                 <div className="relative">
@@ -140,13 +156,13 @@ const Login = ({ onSignUpClick, onLoginSuccess }) => {
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 bg-[#0B0E14] border border-gray-700 rounded-lg text-white placeholder:text-gray-500 focus:outline-none focus:border-[#7e57ffff] focus:ring-1 focus:ring-[#7e57ffff] transition-colors pr-12"
+                    className="w-full px-4 py-3 bg-gray-100 border border-gray-700 rounded-lg text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-[#7e57ffff] focus:ring-1 focus:ring-[#7e57ffff] transition-colors pr-12"
                     placeholder="••••••••"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-900  transition-colors"
                   >
                     {showPassword ? (
                       <EyeOff className="w-5 h-5" />
@@ -160,24 +176,6 @@ const Login = ({ onSignUpClick, onLoginSuccess }) => {
                 )}
               </div>
 
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between">
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-700 bg-[#0B0E14] text-[#7e57ffff] focus:ring-[#7e57ffff] focus:ring-offset-0 cursor-pointer"
-                  />
-                  <span className="ml-2 text-sm text-gray-400">Remember me</span>
-                </label>
-                <a
-                  href="#"
-                  className="text-sm text-[#7e57ffff] hover:text-[#6334ffff] transition-colors"
-                >
-                  Forgot password?
-                </a>
-              </div>
 
               {/* Submit Error */}
               {errors.submit && (
@@ -190,7 +188,7 @@ const Login = ({ onSignUpClick, onLoginSuccess }) => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-[#7e57ffff] hover:bg-[#6334ffff] text-white px-8 py-3.5 rounded-lg text-lg font-medium transition-all shadow-[0_0_20px_rgba(126,87,255,0.3)] hover:shadow-[0_0_30px_rgba(126,87,255,0.5)] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-lg text-lg font-medium transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? "Signing in..." : "Sign In"}
               </button>
@@ -202,12 +200,12 @@ const Login = ({ onSignUpClick, onLoginSuccess }) => {
                 <div className="w-full border-t border-gray-700"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-[#151b2b] text-gray-400">or</span>
+                <span className="px-4 bg-gray-200 text-gray-800">or</span>
               </div>
             </div>
 
             {/* Social Login Options */}
-            <div className="space-y-3">
+            {/* <div className="space-y-3">
               <button
                 type="button"
                 className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-[#0B0E14] border border-gray-700 hover:border-gray-600 rounded-lg text-white transition-colors"
@@ -230,16 +228,16 @@ const Login = ({ onSignUpClick, onLoginSuccess }) => {
                 </svg>
                 <span className="text-sm font-medium">Continue with GitHub</span>
               </button>
-            </div>
+            </div> */}
 
             {/* Signup Link */}
             <div className="text-center mt-6">
-              <p className="text-gray-400 text-sm">
+              <p className="text-gray-600 text-sm">
                 Don't have an account?{" "}
                 <button
                   type="button"
                   onClick={onSignUpClick}
-                  className="text-[#7e57ffff] hover:text-[#6334ffff] font-medium transition-colors"
+                  className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
                 >
                   Sign up
                 </button>
