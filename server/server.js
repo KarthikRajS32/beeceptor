@@ -36,6 +36,8 @@ app.post("/api/endpoints", (req, res) => {
     headerValue,
   } = req.body;
 
+  console.log('Received delay:', delay, 'Type:', typeof delay);
+
   const rule = {
     id: Date.now().toString(),
     projectName,
@@ -51,7 +53,13 @@ app.post("/api/endpoints", (req, res) => {
     stateConditions: stateConditions || [],
     requestConditions: requestConditions || [],
     responseMode: responseMode || "single",
-    weightedResponses: weightedResponses || [],
+    weightedResponses: (weightedResponses || []).map(r => ({
+      ...r,
+      weight: parseInt(r.weight) || 0,
+      delay: parseInt(r.delay) || 0,
+      status: parseInt(r.status) || 200,
+      headers: typeof r.headers === 'string' ? r.headers : JSON.stringify(r.headers),
+    })),
     isFile: isFile || false,
     paramName: paramName || "",
     paramOperator: paramOperator || "equals",
@@ -248,15 +256,34 @@ function matchBodyParamAdvanced(body, paramName, operator, expectedValue) {
 }
 
 function processResponse(rule, req, res) {
+  // Determine which response to use (single or weighted)
+  let response = rule;
+  if (rule.responseMode === "weighted" && rule.weightedResponses && rule.weightedResponses.length > 0) {
+    const totalWeight = rule.weightedResponses.reduce((sum, r) => sum + parseInt(r.weight || 0), 0);
+    let random = Math.random() * totalWeight;
+    for (const weightedResponse of rule.weightedResponses) {
+      random -= parseInt(weightedResponse.weight || 0);
+      if (random <= 0) {
+        response = weightedResponse;
+        break;
+      }
+    }
+  }
+
+  // Get delay in seconds and convert to milliseconds
+  const delayMs = (parseInt(response.delay) || 0) * 1000;
+  console.log('Processing response with delay:', response.delay, 'seconds =', delayMs, 'ms');
+
   // Apply delay if specified
   setTimeout(() => {
     // Set response headers
-    Object.entries(rule.headers).forEach(([key, value]) => {
+    const headers = response.headers ? (typeof response.headers === 'string' ? JSON.parse(response.headers) : response.headers) : rule.headers;
+    Object.entries(headers).forEach(([key, value]) => {
       res.setHeader(key, value);
     });
 
     // Process dynamic values in response body
-    let responseBody = rule.body;
+    let responseBody = response.body || rule.body;
     if (responseBody) {
       responseBody = responseBody
         .replace(/{{timestamp}}/g, Date.now())
@@ -270,7 +297,8 @@ function processResponse(rule, req, res) {
     }
 
     // Send response
-    res.status(rule.status);
+    const status = response.status || rule.status;
+    res.status(status);
 
     if (responseBody) {
       try {
@@ -282,7 +310,7 @@ function processResponse(rule, req, res) {
     } else {
       res.end();
     }
-  }, rule.delay);
+  }, delayMs);
 }
 
 function generateUUID() {
@@ -304,6 +332,9 @@ app.all("*", (req, res) => {
   const projectName = urlParts[0];
   const endpointPath = "/" + urlParts.slice(1).join("/");
 
+  console.log('Request:', req.method, decodedPath);
+  console.log('All rules:', endpointRules.length);
+
   // Find matching endpoint rule
   const rule = endpointRules.find(
     (r) =>
@@ -311,6 +342,8 @@ app.all("*", (req, res) => {
       r.method === req.method.toUpperCase() &&
       matchesCondition(r, req, projectName, endpointPath)
   );
+
+  console.log('Matched rule:', rule ? `${rule.method} ${rule.path} (delay: ${rule.delay}s)` : 'No match');
 
   if (!rule) {
     return res.status(404).json({
@@ -323,4 +356,5 @@ app.all("*", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Mock API server running on http://localhost:${PORT}`);
+  // console.log('Stored endpoints:', endpointRules.map(r => `${r.method} ${r.projectName}${r.path}`));
 });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Header from "../components/layouts/Header";
 import Footer from "../components/layouts/Footer";
-import { FolderOpen, Plus, Edit2, Trash2, ArrowLeft, Calendar, Activity, Copy, Check, ChevronDown } from "lucide-react";
+import { FolderOpen, Plus, Edit2, Trash2, ArrowLeft, Calendar, Activity, Copy, Check, ChevronDown, Clock, Code2, Move, X, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const UserDashboard = ({ user, onLogout }) => {
@@ -12,7 +12,7 @@ const UserDashboard = ({ user, onLogout }) => {
   const [newProjectName, setNewProjectName] = useState("");
   const [newEndpointName, setNewEndpointName] = useState("/");
   const [newEndpointMethod, setNewEndpointMethod] = useState("GET");
-  const [newEndpointDelay, setNewEndpointDelay] = useState("");
+  const [newEndpointDelay, setNewEndpointDelay] = useState("0.00");
   const [newEndpointStatus, setNewEndpointStatus] = useState("200");
   const [newEndpointHeaders, setNewEndpointHeaders] = useState('{\n  "Content-Type": "application/json"\n}');
   const [newEndpointBody, setNewEndpointBody] = useState('{\n  "status": "Awesome!"\n}');
@@ -32,6 +32,9 @@ const UserDashboard = ({ user, onLogout }) => {
   const [weightedResponses, setWeightedResponses] = useState([{ weight: 100, status: '200', headers: '{\n  "Content-Type": "application/json"\n}', body: '{\n  "status": "Awesome!"\n}' }]);
   const [requestLogs, setRequestLogs] = useState([]);
   const [showRequestLogs, setShowRequestLogs] = useState(false);
+  const [showMockingRulesOnboarding, setShowMockingRulesOnboarding] = useState(false);
+  const [rulesEnabled, setRulesEnabled] = useState(true);
+  const [onboardingPrefill, setOnboardingPrefill] = useState(null);
   
   const [showMethodDropdown, setShowMethodDropdown] = useState(false);
   const [projectViewMode, setProjectViewMode] = useState("card"); // 'card' | 'table'
@@ -72,6 +75,14 @@ const UserDashboard = ({ user, onLogout }) => {
     ];
   });
 
+  // Apply prefill from onboarding
+  useEffect(() => {
+    if (onboardingPrefill && !editingEndpoint && showCreateEndpointModal) {
+      if (onboardingPrefill.delay) setNewEndpointDelay(onboardingPrefill.delay);
+      if (onboardingPrefill.body) setNewEndpointBody(onboardingPrefill.body);
+    }
+  }, [onboardingPrefill, editingEndpoint, showCreateEndpointModal]);
+
   // Save to localStorage whenever data changes
   useEffect(() => {
     localStorage.setItem('beeceptor_projects', JSON.stringify(projects));
@@ -107,7 +118,7 @@ const UserDashboard = ({ user, onLogout }) => {
     setEditingEndpoint(endpoint);
     setNewEndpointName(endpoint.name);
     setNewEndpointMethod(endpoint.method);
-    setNewEndpointDelay(endpoint.delay || "");
+    setNewEndpointDelay(endpoint.delay || "0.00");
     setNewEndpointStatus(endpoint.status || "200");
     setNewEndpointHeaders(endpoint.headers || '{\n  "Content-Type": "application/json"\n}');
     setNewEndpointBody(endpoint.body || "");
@@ -171,7 +182,7 @@ const UserDashboard = ({ user, onLogout }) => {
             projectName: selectedProject.name,
             method: newEndpointMethod,
             path: newEndpointName,
-            delay: newEndpointDelay,
+            delay: parseInt(newEndpointDelay) || 0,
             status: newEndpointStatus,
             headers: newEndpointHeaders,
             body: newEndpointBody,
@@ -181,6 +192,7 @@ const UserDashboard = ({ user, onLogout }) => {
             isFile: newIsFile,
             stateConditions: stateConditions,
             requestConditions: requestConditions,
+            weightedResponses: weightedResponses,
           }),
         });
 
@@ -219,7 +231,7 @@ const UserDashboard = ({ user, onLogout }) => {
             projectName: selectedProject.name,
             method: newEndpointMethod,
             path: newEndpointName,
-            delay: newEndpointDelay,
+            delay: parseInt(newEndpointDelay) || 0,
             status: newEndpointStatus,
             headers: newEndpointHeaders,
             body: newEndpointBody,
@@ -229,6 +241,7 @@ const UserDashboard = ({ user, onLogout }) => {
             isFile: newIsFile,
             stateConditions: stateConditions,
             requestConditions: requestConditions,
+            weightedResponses: weightedResponses,
           }),
         });
 
@@ -271,7 +284,7 @@ const UserDashboard = ({ user, onLogout }) => {
       // Reset form
       setNewEndpointName("/");
       setNewEndpointMethod("GET");
-      setNewEndpointDelay("");
+      setNewEndpointDelay("0.00");
       setNewEndpointStatus("200");
       setNewEndpointHeaders('{\n  "Content-Type": "application/json"\n}');
       setNewEndpointBody('{\n  "status": "Awesome!"\n}');
@@ -290,6 +303,12 @@ const UserDashboard = ({ user, onLogout }) => {
       setShowCreateEndpointModal(false);
     } catch (error) {
       console.error('Error creating endpoint:', error);
+      console.log('Endpoint data:', {
+        projectName: selectedProject.name,
+        method: newEndpointMethod,
+        path: newEndpointName,
+        delay: parseInt(newEndpointDelay) || 0,
+      });
       alert('Failed to create endpoint. Make sure the server is running.');
     }
   };
@@ -798,11 +817,11 @@ const UserDashboard = ({ user, onLogout }) => {
 
                 <div className="flex gap-4">
                   <button
-                    onClick={() => setShowCreateEndpointModal(true)}
+                    onClick={() => setShowMockingRulesOnboarding(true)}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-lg text-lg font-medium transition-all flex items-center gap-2"
                   >
                     <Plus className="w-5 h-5" />
-                    Create New Endpoint
+                    Endpoint Rules
                   </button>
                   {/* <button
                   onClick={() => setShowRequestLogs(true)}
@@ -987,14 +1006,13 @@ const UserDashboard = ({ user, onLogout }) => {
           <div className="bg-gray-100 rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto scrollbar-hide shadow-2xl flex flex-col font-sans">
             <div className="p-6 border-b border-gray-700 flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-600">
-                {editingEndpoint
-                  ? "Edit Mocking Rule"
-                  : "Create New Mocking Rule"}
+                {editingEndpoint ? "Edit Mocking Rule" : "Mocking Rules"}
               </h2>
               <button
                 onClick={() => {
                   setShowCreateEndpointModal(false);
                   setNewResponseMode("single");
+                  setOnboardingPrefill(null);
                 }}
                 className="text-gray-700 hover:text-gray-500 transition-colors"
               >
@@ -1590,6 +1608,7 @@ const UserDashboard = ({ user, onLogout }) => {
                   {newResponseMode === "single" && (
                     <div className="grid grid-cols-2 gap-8 mb-6">
                       {/* Delay */}
+                      {/* Delay */}
                       <div>
                         <label className="block text-md font-semibold text-gray-700 mb-2">
                           Response delayed by (sec)
@@ -1597,14 +1616,15 @@ const UserDashboard = ({ user, onLogout }) => {
                         <div className="flex">
                           <input
                             type="number"
+                            step="0.01"
                             value={newEndpointDelay}
                             onChange={(e) =>
                               setNewEndpointDelay(e.target.value)
                             }
                             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-l text-gray-900 focus:outline-none focus:border-blue-500 text-sm"
-                            placeholder="0"
+                            placeholder="0.00"
                           />
-                          <span className="px-3 py-2.5 bg-gray-200 border border-l-0 border-gray-300 text-gray-600 text-xs font-bold rounded-r flex items-center">
+                          <span className="px-3 py-2.5 bg-gray-200 border border-l-0 border-gray-300 text-gray-600 text-sm font-medium rounded-r flex items-center">
                             sec
                           </span>
                         </div>
@@ -1689,21 +1709,27 @@ const UserDashboard = ({ user, onLogout }) => {
 
                             <div>
                               <label className="block text-md font-semibold text-gray-700 mb-2">
-                                Response delayed by (sec)
+                                Response delayed by
                               </label>
-                              <input
-                                type="number"
-                                value={response.delay || ""}
-                                onChange={(e) =>
-                                  updateWeightedResponse(
-                                    index,
-                                    "delay",
-                                    e.target.value
-                                  )
-                                }
-                                className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm"
-                                placeholder="0"
-                              />
+                              <div className="flex">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={response.delay || ""}
+                                  onChange={(e) =>
+                                    updateWeightedResponse(
+                                      index,
+                                      "delay",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-l text-gray-900 focus:outline-none focus:border-blue-500 text-sm"
+                                  placeholder="0.00"
+                                />
+                                <span className="px-3 py-2 bg-gray-200 border border-l-0 border-gray-300 text-gray-600 text-sm font-medium rounded-r flex items-center">
+                                  sec
+                                </span>
+                              </div>
                             </div>
                             <div>
                               <label className="block text-md font-semibold text-gray-700 mb-2">
@@ -1912,6 +1938,7 @@ const UserDashboard = ({ user, onLogout }) => {
                   ]);
                   setEditingEndpoint(null);
                   setShowMethodDropdown(false);
+                  setOnboardingPrefill(null);
                 }}
                 className="px-8 py-2.5 bg-transparent border border-gray-500 text-gray-600 hover:bg-gray-200 rounded font-medium transition-colors"
               >
@@ -1924,6 +1951,153 @@ const UserDashboard = ({ user, onLogout }) => {
               >
                 Save Rule
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mocking Rules Onboarding Modal */}
+      {showMockingRulesOnboarding && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-[100] px-4">
+          <div className="bg-white rounded-lg max-w-6xl w-full shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-5 py-3.5 flex justify-between items-center border-b border-gray-100 bg-white">
+              <h2 className="text-[17px] font-medium text-[#4b5563]">
+                Mocking Rules
+              </h2>
+              <div className="flex items-center gap-4">
+                {/* <div className="flex items-center bg-[#2d3748] rounded-md h-[34px] pl-3 pr-1 gap-3">
+                  <span className="text-white text-[13px] font-medium">Rules enabled</span>
+                  <div 
+                    onClick={() => setRulesEnabled(!rulesEnabled)}
+                    className="w-[34px] h-[22px] bg-white rounded-md relative cursor-pointer"
+                  >
+                    <div className={`absolute top-0.5 bottom-0.5 w-[14px] bg-[#2d3748] rounded-sm transition-all duration-200 ${rulesEnabled ? 'right-0.5' : 'left-0.5'}`}></div>
+                  </div>
+                </div> */}
+                <button
+                  onClick={() => setShowMockingRulesOnboarding(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-10 pt-8 pb-4">
+              {/* Main Heading Section */}
+              <div className="text-center">
+                <h1 className="text-[28px] font-medium text-[#374151] flex items-center justify-center gap-2">
+                  Build something awesome!
+                </h1>
+                <p className="text-[#6b7280] text-[17px] mb-6">
+                  Create your first mock rule to start customizing API
+                  responses.
+                </p>
+
+                <h3 className="text-[#4b5563] text-xl font-medium mb-4">
+                  Discover What's Possible
+                </h3>
+
+                {/* Cards Grid */}
+                <div className="grid grid-cols-3 gap-5">
+                  {/* Delay Card */}
+                  <div
+                    onClick={() => {
+                      setShowMockingRulesOnboarding(false);
+                      setOnboardingPrefill({ delay: "5.00" });
+                      setShowCreateEndpointModal(true);
+                    }}
+                    className="p-6 border border-gray-200 rounded-lg bg-white hover:border-blue-400 hover:shadow-md transition-all text-left flex flex-col gap-4 cursor-pointer"
+                  >
+                    <div className="w-11 h-11 rounded-full bg-[#f3f3f3ff] flex items-center justify-center border border-gray-50">
+                      <Clock className="w-5 h-5 text-[#64748b]" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-[#1f2937] text-[15px] mb-2 leading-tight">
+                        Add Delay to Proxy Response
+                      </h4>
+                      <p className="text-[13px] text-[#6b7280] leading-[1.6] font-normal">
+                        Introduce a delay to mimic slow or flaky network
+                        conditions. Helps test timeouts and retry behaviors in
+                        your app.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Dynamic Mock Card */}
+                  <div
+                    onClick={() => {
+                      setShowMockingRulesOnboarding(false);
+                      setOnboardingPrefill({
+                        body: '[\n  {\n    "id": "{{faker \'string.uuid\'}}",\n    "name": "{{faker \'person.firstName\'}} {{faker \'person.lastName\'}}",\n    "email": "{{faker \'internet.email\'}}",\n    "address": "{{faker \'location.streetAddress\'}}",\n    "country": "{{faker \'location.country\'}}",\n    "phone": "{{faker \'phone.number\'}}"\n  }\n]',
+                      });
+                      setShowCreateEndpointModal(true);
+                    }}
+                    className="p-6 border border-gray-200 rounded-lg bg-white hover:border-blue-400 hover:shadow-md transition-all text-left flex flex-col gap-4 cursor-pointer"
+                  >
+                    <div className="w-11 h-11 rounded-full bg-[#f3f3f3ff] flex items-center justify-center border border-gray-50">
+                      <Code2 className="w-5 h-5 text-[#64748b]" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-[#1f2937] text-[15px] mb-2 leading-tight">
+                        Create a Dynamic Mock Response
+                      </h4>
+                      <p className="text-[13px] text-[#6b7280] leading-[1.6] font-normal">
+                        Learn how to build dynamic API responses using
+                        Beeceptor's template engine — ideal for testing
+                        different output scenarios.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Execution Order Card */}
+                  <div
+                    onClick={() => {
+                      setShowMockingRulesOnboarding(false);
+                    }}
+                    className="p-6 border border-gray-200 rounded-lg bg-white hover:border-blue-400 hover:shadow-md transition-all text-left flex flex-col gap-4 cursor-pointer"
+                  >
+                    <div className="w-11 h-11 rounded-full bg-[#f3f3f3ff] flex items-center justify-center border border-gray-50">
+                      <Move className="w-5 h-5 text-[#64748b]" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-[#1f2937] text-[15px] mb-2 leading-tight">
+                        Change Rule Execution Order
+                      </h4>
+                      <p className="text-[13px] text-[#6b7280] leading-[1.6] font-normal">
+                        Drag and reorder mock rules to control which one matches
+                        first. The top-most rule always has the highest
+                        priority.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Section */}
+              <div className="flex items-center justify-center gap-6 mt-12 bg-white sticky bottom-0">
+                <div className="flex items-center">
+                  <button
+                    onClick={() => {
+                      setShowMockingRulesOnboarding(false);
+                      setOnboardingPrefill(null);
+                      setShowCreateEndpointModal(true);
+                    }}
+                    className="bg-[#2998e4] hover:bg-[#2587cd] text-white px-5 py-2.5 rounded-l-md font-medium transition-all flex items-center gap-2 text-sm shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    New Mock Rule
+                  </button>
+                  {/* <button className="bg-[#2998e4] hover:bg-[#2587cd] text-white px-2.5 py-2.5 rounded-r-md border-l border-white/20 transition-all shadow-sm">
+                    <ChevronDown className="w-4 h-4" />
+                  </button> */}
+                </div>
+                {/* <button className="flex items-center gap-1.5 text-[#3b82f6] hover:text-blue-600 font-medium transition-colors text-[15px]">
+                  <Sparkles className="w-4 h-4" />
+                  Create with AI <span className="text-[10px] bg-blue-50 px-1 rounded font-bold ml-0.5">B</span>
+                </button> */}
+              </div>
             </div>
           </div>
         </div>
