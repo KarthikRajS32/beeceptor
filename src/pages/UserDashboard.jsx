@@ -35,6 +35,14 @@ const UserDashboard = ({ user, onLogout }) => {
   const [showMockingRulesOnboarding, setShowMockingRulesOnboarding] = useState(false);
   const [rulesEnabled, setRulesEnabled] = useState(true);
   const [onboardingPrefill, setOnboardingPrefill] = useState(null);
+  const [mockingRulesMessage, setMockingRulesMessage] = useState(null);
+
+  useEffect(() => {
+    if (mockingRulesMessage) {
+      const timer = setTimeout(() => setMockingRulesMessage(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [mockingRulesMessage]);
   
   const [showMethodDropdown, setShowMethodDropdown] = useState(false);
   const [projectViewMode, setProjectViewMode] = useState("card"); // 'card' | 'table'
@@ -1959,22 +1967,17 @@ const UserDashboard = ({ user, onLogout }) => {
       {/* Mocking Rules Onboarding Modal */}
       {showMockingRulesOnboarding && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-[100] px-4">
+          {/* Top-right Notification */}
+          {mockingRulesMessage && (
+            <div className="fixed top-24 right-8 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg shadow-lg z-[101] max-w-sm">
+              {mockingRulesMessage}
+            </div>
+          )}
           <div className="bg-white rounded-lg max-w-6xl w-full shadow-2xl overflow-hidden">
             {/* Modal Header */}
             <div className="px-5 py-3.5 flex justify-between items-center border-b border-gray-100 bg-white">
-              <h2 className="text-[17px] font-medium text-[#4b5563]">
-                Mocking Rules
-              </h2>
+              <h2 className="text-xl font-bold text-gray-600">Mocking Rules</h2>
               <div className="flex items-center gap-4">
-                {/* <div className="flex items-center bg-[#2d3748] rounded-md h-[34px] pl-3 pr-1 gap-3">
-                  <span className="text-white text-[13px] font-medium">Rules enabled</span>
-                  <div 
-                    onClick={() => setRulesEnabled(!rulesEnabled)}
-                    className="w-[34px] h-[22px] bg-white rounded-md relative cursor-pointer"
-                  >
-                    <div className={`absolute top-0.5 bottom-0.5 w-[14px] bg-[#2d3748] rounded-sm transition-all duration-200 ${rulesEnabled ? 'right-0.5' : 'left-0.5'}`}></div>
-                  </div>
-                </div> */}
                 <button
                   onClick={() => setShowMockingRulesOnboarding(false)}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -2000,7 +2003,7 @@ const UserDashboard = ({ user, onLogout }) => {
                 </h3>
 
                 {/* Cards Grid */}
-                <div className="grid grid-cols-3 gap-5">
+                <div className="flex max-w-2xl justify-center mx-auto gap-5">
                   {/* Delay Card */}
                   <div
                     onClick={() => {
@@ -2047,28 +2050,6 @@ const UserDashboard = ({ user, onLogout }) => {
                         Learn how to build dynamic API responses using
                         Beeceptor's template engine — ideal for testing
                         different output scenarios.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Execution Order Card */}
-                  <div
-                    onClick={() => {
-                      setShowMockingRulesOnboarding(false);
-                    }}
-                    className="p-6 border border-gray-200 rounded-lg bg-white hover:border-blue-400 hover:shadow-md transition-all text-left flex flex-col gap-4 cursor-pointer"
-                  >
-                    <div className="w-11 h-11 rounded-full bg-[#f3f3f3ff] flex items-center justify-center border border-gray-50">
-                      <Move className="w-5 h-5 text-[#64748b]" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-[#1f2937] text-[15px] mb-2 leading-tight">
-                        Change Rule Execution Order
-                      </h4>
-                      <p className="text-[13px] text-[#6b7280] leading-[1.6] font-normal">
-                        Drag and reorder mock rules to control which one matches
-                        first. The top-most rule always has the highest
-                        priority.
                       </p>
                     </div>
                   </div>
