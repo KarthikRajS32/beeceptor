@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "../ui/button";
-import { ChevronDown, User, LogOut, Mail, Settings } from "lucide-react";
+import { ChevronDown, User, LogOut, Mail, Settings, Users } from "lucide-react";
 import { Link } from 'react-router-dom';
 
 const Header = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = null, onLogout }) => {
@@ -173,6 +173,18 @@ const Header = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = n
                     </div>
 
                     <div className="h-px bg-gray-200 w-full" />
+
+                    <Link
+                      to="/team-invite"
+                      onClick={() => setIsDropdownOpen(false)}
+                      className="flex items-center gap-3 text-gray-700 hover:text-gray-900 transition-colors w-full py-2 group"
+                    >
+                      <Users
+                        size={18}
+                        className="group-hover:scale-110 transition-transform duration-300"
+                      />
+                      <span className="font-medium">Team Invite</span>
+                    </Link>
 
                     <Link
                       to="/edit-account"

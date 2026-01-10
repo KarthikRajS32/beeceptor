@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import Header from "../components/layouts/Header";
 import Footer from "../components/layouts/Footer";
+import EnvironmentSelector from "./EnvironmentSelector";
 import { FolderOpen, Plus, Edit2, Trash2, ArrowLeft, Calendar, Activity, Copy, Check, ChevronDown, Clock, Code2, Move, X, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { getProjectEnvironments, getSelectedEnvironment, setSelectedEnvironment, getEnvironmentRules, saveEndpointWithEnvironment, deleteEndpointFromEnvironment, addEnvironmentToProject, removeEnvironmentFromProject, cloneEnvironment } from "../lib/environmentManager";
 
 const UserDashboard = ({ user, onLogout }) => {
   const [currentView, setCurrentView] = useState("projects"); // 'projects' | 'project-details'
@@ -50,7 +52,23 @@ const UserDashboard = ({ user, onLogout }) => {
   const [editingEndpoint, setEditingEndpoint] = useState(null);
   const [copiedUrl, setCopiedUrl] = useState(null);
   const [copiedProjectUrl, setCopiedProjectUrl] = useState(null);
+  const [selectedEnvironment, setSelectedEnvironmentState] = useState('Default');
+  const [projectEnvironments, setProjectEnvironments] = useState([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (selectedProject) {
+      setSelectedEnvironmentState(getSelectedEnvironment(selectedProject.id));
+      setProjectEnvironments(getProjectEnvironments(selectedProject.id));
+    }
+  }, [selectedProject]);
+
+  const handleEnvironmentChange = (environment) => {
+    if (selectedProject) {
+      setSelectedEnvironmentState(environment);
+      setSelectedEnvironment(selectedProject.id, environment);
+    }
+  };
 
   // Redundant handles in component, App.jsx now handles protection via ProtectedRoute
 
@@ -224,6 +242,7 @@ const UserDashboard = ({ user, onLogout }) => {
           stateConditions: stateConditions,
           requestConditions: requestConditions,
         };
+        saveEndpointWithEnvironment(selectedProject.id, selectedEnvironment, updatedEndpoint);
         setEndpoints(endpoints.map(e => 
           e.id === editingEndpoint.id ? updatedEndpoint : e
         ));
@@ -262,6 +281,7 @@ const UserDashboard = ({ user, onLogout }) => {
           id: `ep_${Date.now()}`,
           name: newEndpointName,
           projectId: selectedProject.id,
+          environment: selectedEnvironment,
           createdDate: new Date().toISOString().split("T")[0],
           requestCount: 0,
           method: newEndpointMethod,
@@ -277,6 +297,7 @@ const UserDashboard = ({ user, onLogout }) => {
           requestConditions: requestConditions,
         };
 
+        saveEndpointWithEnvironment(selectedProject.id, selectedEnvironment, newEndpoint);
         setEndpoints([...endpoints, newEndpoint]);
         
         // Update project endpoint count
@@ -323,10 +344,7 @@ const UserDashboard = ({ user, onLogout }) => {
 
   const handleDeleteEndpoint = (endpointId) => {
     if (!confirm("Are you sure you want to delete this endpoint?")) return;
-
-    setEndpoints(endpoints.filter((e) => e.id !== endpointId));
-    
-    // Update project endpoint count
+    deleteEndpointFromEnvironment(endpointId);
     if (selectedProject) {
       setProjects(
         projects.map((p) =>
@@ -520,7 +538,7 @@ const UserDashboard = ({ user, onLogout }) => {
   };
 
   const getProjectEndpoints = (projectId) => {
-    return endpoints.filter((e) => e.projectId === projectId);
+    return getEnvironmentRules(projectId, selectedEnvironment);
   };
 
 
@@ -839,6 +857,28 @@ const UserDashboard = ({ user, onLogout }) => {
                   View Request Logs
                 </button> */}
                 </div>
+              </div>
+
+              {/* Environment Selector */}
+              <div className="mb-8">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Environment
+                </label>
+                <EnvironmentSelector
+                  selectedEnvironment={selectedEnvironment}
+                  onEnvironmentChange={handleEnvironmentChange}
+                  environments={projectEnvironments}
+                  onAddEnvironment={(envName) => {
+                    const updated = [...projectEnvironments, envName];
+                    setProjectEnvironments(updated);
+                    addEnvironmentToProject(selectedProject.id, envName);
+                  }}
+                  onRemoveEnvironment={(envName) => {
+                    const updated = projectEnvironments.filter(e => e !== envName);
+                    setProjectEnvironments(updated);
+                    removeEnvironmentFromProject(selectedProject.id, envName);
+                  }}
+                />
               </div>
 
               {/* Endpoints Table or Empty State */}
@@ -2119,3 +2159,4 @@ const UserDashboard = ({ user, onLogout }) => {
 };
 
 export default UserDashboard;
+ 

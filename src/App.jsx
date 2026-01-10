@@ -4,6 +4,7 @@ import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import UserDashboard from './pages/UserDashboard';
+import TeamInvite from './pages/TeamInvite';
 import EditAccount from './pages/EditAccount';
 import Price from './pages/Price';
 import Features from './pages/Features';
@@ -22,15 +23,20 @@ const AppContent = () => {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
+  const [projects, setProjects] = useState([]);
 
   // Load authentication state from localStorage on app start
   useEffect(() => {
     const storedAuth = localStorage.getItem('isAuthenticated');
     const storedUser = localStorage.getItem('user');
+    const storedProjects = localStorage.getItem('beeceptor_projects');
     
     if (storedAuth === 'true' && storedUser) {
       setIsAuthenticated(true);
       setUser(JSON.parse(storedUser));
+    }
+    if (storedProjects) {
+      setProjects(JSON.parse(storedProjects));
     }
   }, []);
 
@@ -138,6 +144,18 @@ const AppContent = () => {
             <UserDashboard
               user={user}
               onLogout={handleLogout}
+            />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/team-invite"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <TeamInvite
+              user={user}
+              onLogout={handleLogout}
+              projects={projects}
             />
           </ProtectedRoute>
         }
