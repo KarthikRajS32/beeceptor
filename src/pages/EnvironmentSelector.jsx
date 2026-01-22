@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Plus, Trash2, Copy } from 'lucide-react';
 
 const EnvironmentSelector = ({ 
@@ -12,6 +12,24 @@ const EnvironmentSelector = ({
   const [isOpen, setIsOpen] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newEnvName, setNewEnvName] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+        setShowAddForm(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
 
   const handleAddEnvironment = () => {
     if (newEnvName.trim() && !environments.includes(newEnvName)) {
@@ -22,7 +40,7 @@ const EnvironmentSelector = ({
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 hover:bg-gray-50 transition-colors font-medium"

@@ -2,9 +2,12 @@ import React, { useState, useEffect } from "react";
 import Header from "../components/layouts/Header";
 import Footer from "../components/layouts/Footer";
 import EnvironmentSelector from "./EnvironmentSelector";
+import QueryHeaderRuleBuilder from "../components/QueryHeaderRuleBuilder";
 import { FolderOpen, Plus, Edit2, Trash2, ArrowLeft, Calendar, Activity, Copy, Check, ChevronDown, Clock, Code2, Move, X, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getProjectEnvironments, getSelectedEnvironment, setSelectedEnvironment, getEnvironmentRules, saveEndpointWithEnvironment, deleteEndpointFromEnvironment, addEnvironmentToProject, removeEnvironmentFromProject, cloneEnvironment } from "../lib/environmentManager";
+import { getQueryHeaderRules, saveQueryHeaderRules } from "../lib/queryHeaderRuleEngine";
+import { useSyncQueryHeaderRules } from "../lib/useSyncQueryHeaderRules";
 
 const UserDashboard = ({ user, onLogout }) => {
   const [currentView, setCurrentView] = useState("projects"); // 'projects' | 'project-details'
@@ -22,6 +25,8 @@ const UserDashboard = ({ user, onLogout }) => {
   const [newMatchType, setNewMatchType] = useState("path_exact"); // Updated default
   const [newResponseMode, setNewResponseMode] = useState("single"); // 'single' | 'weighted'
   const [newIsFile, setNewIsFile] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [fileUploadLoading, setFileUploadLoading] = useState(false);
   const [stateConditions, setStateConditions] = useState([]);
   const [requestConditions, setRequestConditions] = useState([]);
   const [newParamName, setNewParamName] = useState("");
@@ -32,6 +37,7 @@ const UserDashboard = ({ user, onLogout }) => {
   const [showContentTypeDropdown, setShowContentTypeDropdown] = useState(false);
   const [showDynamicValueDropdown, setShowDynamicValueDropdown] = useState(false);
   const [weightedResponses, setWeightedResponses] = useState([{ weight: 100, status: '200', headers: '{\n  "Content-Type": "application/json"\n}', body: '{\n  "status": "Awesome!"\n}' }]);
+  const [activeResponseTab, setActiveResponseTab] = useState(0);
   const [requestLogs, setRequestLogs] = useState([]);
   const [showRequestLogs, setShowRequestLogs] = useState(false);
   const [showMockingRulesOnboarding, setShowMockingRulesOnboarding] = useState(false);
@@ -54,7 +60,10 @@ const UserDashboard = ({ user, onLogout }) => {
   const [copiedProjectUrl, setCopiedProjectUrl] = useState(null);
   const [selectedEnvironment, setSelectedEnvironmentState] = useState('Default');
   const [projectEnvironments, setProjectEnvironments] = useState([]);
+  const [queryHeaderRuleTrigger, setQueryHeaderRuleTrigger] = useState(0);
+  const [tempActiveId, setTempActiveId] = useState(`temp_${Date.now()}`);
   const navigate = useNavigate();
+  useSyncQueryHeaderRules();
 
   useEffect(() => {
     if (selectedProject) {
@@ -75,31 +84,14 @@ const UserDashboard = ({ user, onLogout }) => {
   // Load data from localStorage or use default mock data
   const [projects, setProjects] = useState(() => {
     const saved = localStorage.getItem('beeceptor_projects');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: "proj_1",
-        name: "project-alpha",
-        url: "https://project-alpha.arjava.com",
-        createdDate: "2024-01-15",
-        endpointCount: 5,
-        userId: user?.id,
-      },
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
 
+  
   const [endpoints, setEndpoints] = useState(() => {
     const saved = localStorage.getItem('beeceptor_endpoints');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: "ep_1",
-        name: "/api/users",
-        projectId: "proj_1",
-        createdDate: "2024-01-16",
-        requestCount: 1234,
-        method: "GET",
-      }
-    ];
-  });
+    return saved ? JSON.parse(saved) : [];
+  });  
 
   // Apply prefill from onboarding
   useEffect(() => {
@@ -115,7 +107,11 @@ const UserDashboard = ({ user, onLogout }) => {
   }, [projects]);
 
   useEffect(() => {
-    localStorage.setItem('beeceptor_endpoints', JSON.stringify(endpoints));
+    const sanitized = endpoints.map(e => ({
+      ...e,
+      uploadedFile: e.uploadedFile && e.uploadedFile.name ? { name: e.uploadedFile.name, size: e.uploadedFile.size, type: e.uploadedFile.type, data: e.uploadedFile.data } : null
+    }));
+    localStorage.setItem('beeceptor_endpoints', JSON.stringify(sanitized));
   }, [endpoints]);
 
   const handleProjectClick = (project) => {
@@ -152,6 +148,8 @@ const UserDashboard = ({ user, onLogout }) => {
     setNewMatchType(endpoint.matchType || "path_exact");
     setNewResponseMode(endpoint.responseMode || "single");
     setNewIsFile(endpoint.isFile || false);
+    const safeFile = endpoint.uploadedFile && typeof endpoint.uploadedFile === 'object' && endpoint.uploadedFile.name ? endpoint.uploadedFile : null;
+    setUploadedFile(safeFile);
     setStateConditions(endpoint.stateConditions || []);
     setRequestConditions(endpoint.requestConditions || []);
     setNewParamName(endpoint.paramName || "");
@@ -159,6 +157,8 @@ const UserDashboard = ({ user, onLogout }) => {
     setNewParamValue(endpoint.paramValue || "");
     setNewHeaderName(endpoint.headerName || "");
     setNewHeaderValue(endpoint.headerValue || "");
+    setWeightedResponses(endpoint.weightedResponses || [{ weight: 100, status: '200', headers: '{\n  "Content-Type": "application/json"\n}', body: '{\n  "status": "Awesome!"\n}' }]);
+    setTempActiveId(endpoint.id);
     setShowCreateEndpointModal(true);
   };
 
@@ -197,36 +197,43 @@ const UserDashboard = ({ user, onLogout }) => {
     if (!newEndpointName.trim() || !selectedProject) return;
 
     try {
+      const endpointData = {
+        projectName: selectedProject.name,
+        method: newEndpointMethod,
+        path: newEndpointName,
+        delay: parseFloat(newEndpointDelay) || 0,
+        status: newEndpointStatus,
+        headers: newEndpointHeaders,
+        body: newEndpointBody,
+        description: newRuleDescription,
+        matchType: newMatchType,
+        responseMode: newResponseMode,
+        isFile: newIsFile,
+        stateConditions: stateConditions.filter(c => c.variable && c.type && c.operator),
+        requestConditions: requestConditions,
+        weightedResponses: weightedResponses,
+      };
+
       if (editingEndpoint) {
-        // Send updated endpoint to backend server
-        const response = await fetch('http://localhost:3001/api/endpoints', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            projectName: selectedProject.name,
-            method: newEndpointMethod,
-            path: newEndpointName,
-            delay: parseInt(newEndpointDelay) || 0,
-            status: newEndpointStatus,
-            headers: newEndpointHeaders,
-            body: newEndpointBody,
-            description: newRuleDescription,
-            matchType: newMatchType,
-            responseMode: newResponseMode,
-            isFile: newIsFile,
-            stateConditions: stateConditions,
-            requestConditions: requestConditions,
-            weightedResponses: weightedResponses,
-          }),
-        });
+        endpointData.id = editingEndpoint.id;
+      }
 
-        if (!response.ok) {
-          throw new Error('Failed to update endpoint');
-        }
+      const response = await fetch('http://localhost:3001/api/endpoints', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(endpointData),
+      });
 
-        // Update existing endpoint in frontend
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const sanitizedFile = uploadedFile && typeof uploadedFile === 'object' && !uploadedFile.file ? uploadedFile : null;
+
+      if (editingEndpoint) {
         const updatedEndpoint = {
           ...editingEndpoint,
           name: newEndpointName,
@@ -239,8 +246,10 @@ const UserDashboard = ({ user, onLogout }) => {
           matchType: newMatchType,
           responseMode: newResponseMode,
           isFile: newIsFile,
+          uploadedFile: sanitizedFile,
           stateConditions: stateConditions,
           requestConditions: requestConditions,
+          weightedResponses: weightedResponses,
         };
         saveEndpointWithEnvironment(selectedProject.id, selectedEnvironment, updatedEndpoint);
         setEndpoints(endpoints.map(e => 
@@ -248,35 +257,6 @@ const UserDashboard = ({ user, onLogout }) => {
         ));
         setEditingEndpoint(null);
       } else {
-        // Send endpoint to backend server
-        const response = await fetch('http://localhost:3001/api/endpoints', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            projectName: selectedProject.name,
-            method: newEndpointMethod,
-            path: newEndpointName,
-            delay: parseInt(newEndpointDelay) || 0,
-            status: newEndpointStatus,
-            headers: newEndpointHeaders,
-            body: newEndpointBody,
-            description: newRuleDescription,
-            matchType: newMatchType,
-            responseMode: newResponseMode,
-            isFile: newIsFile,
-            stateConditions: stateConditions,
-            requestConditions: requestConditions,
-            weightedResponses: weightedResponses,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to create endpoint');
-        }
-
-        // Create new endpoint for frontend display
         const newEndpoint = {
           id: `ep_${Date.now()}`,
           name: newEndpointName,
@@ -293,14 +273,22 @@ const UserDashboard = ({ user, onLogout }) => {
           matchType: newMatchType,
           responseMode: newResponseMode,
           isFile: newIsFile,
+          uploadedFile: sanitizedFile,
           stateConditions: stateConditions,
           requestConditions: requestConditions,
+          weightedResponses: weightedResponses,
         };
+
+        const finalEndpointId = newEndpoint.id;
+        const allQhRules = getQueryHeaderRules();
+        const updatedQhRules = allQhRules.map(r => 
+          r.endpointId === tempActiveId ? { ...r, endpointId: finalEndpointId } : r
+        );
+        saveQueryHeaderRules(updatedQhRules);
 
         saveEndpointWithEnvironment(selectedProject.id, selectedEnvironment, newEndpoint);
         setEndpoints([...endpoints, newEndpoint]);
         
-        // Update project endpoint count
         setProjects(
           projects.map((p) =>
             p.id === selectedProject.id
@@ -310,7 +298,6 @@ const UserDashboard = ({ user, onLogout }) => {
         );
       }
 
-      // Reset form
       setNewEndpointName("/");
       setNewEndpointMethod("GET");
       setNewEndpointDelay("0.00");
@@ -321,6 +308,7 @@ const UserDashboard = ({ user, onLogout }) => {
       setNewMatchType("path_exact");
       setNewResponseMode("single");
       setNewIsFile(false);
+      setUploadedFile(null);
       setStateConditions([]);
       setRequestConditions([]);
       setNewParamName("");
@@ -328,23 +316,19 @@ const UserDashboard = ({ user, onLogout }) => {
       setNewParamValue("");
       setNewHeaderName("");
       setNewHeaderValue("");
-      setWeightedResponses([{ weight: 50, status: '200', headers: '{\n  "Content-Type": "application/json"\n}', body: '' }]);
+      setTempActiveId(`temp_${Date.now()}`);
+      setWeightedResponses([{ weight: 100, status: '200', headers: '{\n  "Content-Type": "application/json"\n}', body: '{\n  "status": "Awesome!"\n}' }]);
       setShowCreateEndpointModal(false);
     } catch (error) {
       console.error('Error creating endpoint:', error);
-      console.log('Endpoint data:', {
-        projectName: selectedProject.name,
-        method: newEndpointMethod,
-        path: newEndpointName,
-        delay: parseInt(newEndpointDelay) || 0,
-      });
-      alert('Failed to create endpoint. Make sure the server is running.');
+      alert(`Failed to create endpoint: ${error.message}`);
     }
   };
 
   const handleDeleteEndpoint = (endpointId) => {
     if (!confirm("Are you sure you want to delete this endpoint?")) return;
-    deleteEndpointFromEnvironment(endpointId);
+    const updatedEndpoints = deleteEndpointFromEnvironment(endpointId);
+    setEndpoints(updatedEndpoints);
     if (selectedProject) {
       setProjects(
         projects.map((p) =>
@@ -408,12 +392,35 @@ const UserDashboard = ({ user, onLogout }) => {
   };
 
   const addWeightedResponse = () => {
-    setWeightedResponses([...weightedResponses, { weight: 0, status: '200', headers: '{\n  "Content-Type": "application/json"\n}', body: '{\n  "status": "Awesome!"\n}' }]);
+    if (weightedResponses.length >= 4) return;
+    
+    const newResponses = [...weightedResponses];
+    
+    // Exact weight distribution logic
+    if (newResponses.length === 1) {
+      // Going from 1 to 2 responses: 50%, 50%
+      newResponses[0].weight = 50;
+      newResponses.push({ weight: 50, status: '200', headers: '{\n  "Content-Type": "application/json"\n}', body: '{\n  "status": "Awesome!"\n}' });
+    } else if (newResponses.length === 2) {
+      // Going from 2 to 3 responses: 50%, 25%, 25%
+      newResponses[1].weight = 25;
+      newResponses.push({ weight: 25, status: '200', headers: '{\n  "Content-Type": "application/json"\n}', body: '{\n  "status": "Awesome!"\n}' });
+    } else if (newResponses.length === 3) {
+      // Going from 3 to 4 responses: 50%, 25%, 12.5%, 12.5%
+      newResponses[2].weight = 12.5;
+      newResponses.push({ weight: 12.5, status: '200', headers: '{\n  "Content-Type": "application/json"\n}', body: '{\n  "status": "Awesome!"\n}' });
+    }
+    
+    setWeightedResponses(newResponses);
+    setActiveResponseTab(newResponses.length - 1); // Switch to the new tab
   };
 
   const removeWeightedResponse = (index) => {
     if (weightedResponses.length > 1) {
       setWeightedResponses(weightedResponses.filter((_, i) => i !== index));
+      if (activeResponseTab >= weightedResponses.length - 1) {
+        setActiveResponseTab(Math.max(0, weightedResponses.length - 2));
+      }
     }
   };
 
@@ -542,13 +549,45 @@ const UserDashboard = ({ user, onLogout }) => {
   };
 
 
-  const handleCopyUrl = async (url, endpointId) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedUrl(endpointId);
-      setTimeout(() => setCopiedUrl(null), 2000);
-    } catch (err) {
-      console.error('Failed to copy URL:', err);
+  const handleFileUpload = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setUploadedFile({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        data: e.target.result
+      });
+      setNewEndpointHeaders(`{\n  "Content-Type": "${file.type || 'application/octet-stream'}"\n}`);
+      setFileUploadLoading(false);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleFileSelect = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        handleFileUpload(file);
+      }
+    };
+    input.click();
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      handleFileUpload(file);
     }
   };
 
@@ -644,10 +683,10 @@ const UserDashboard = ({ user, onLogout }) => {
                                   handleCopyProjectUrl(
                                     project.url ||
                                       generateProjectUrl(project.name),
-                                    project.id
+                                    project.id,
                                   );
                                 }}
-                                className="text-gray-800  transition-colors"
+                                className="text-gray-800  transition-colors cursor-pointer"
                                 title="Copy Project URL"
                               >
                                 {copiedProjectUrl === project.id ? (
@@ -667,7 +706,7 @@ const UserDashboard = ({ user, onLogout }) => {
                                 e.stopPropagation();
                                 handleEditProject(project);
                               }}
-                              className="text-gray-500 hover:text-gray-700 transition-colors"
+                              className="text-gray-500 hover:text-gray-700 transition-colors cursor-pointer"
                               title="Edit project"
                             >
                               <Edit2 className="w-5 h-5 " />
@@ -677,7 +716,7 @@ const UserDashboard = ({ user, onLogout }) => {
                                 e.stopPropagation();
                                 handleDeleteProject(project.id);
                               }}
-                              className="text-gray-500 hover:text-red-600 transition-colors"
+                              className="text-gray-500 hover:text-red-600 transition-colors cursor-pointer"
                               title="Delete project"
                             >
                               <Trash2 className="w-5 h-5" />
@@ -751,10 +790,10 @@ const UserDashboard = ({ user, onLogout }) => {
                                         handleCopyProjectUrl(
                                           project.url ||
                                             generateProjectUrl(project.name),
-                                          project.id
+                                          project.id,
                                         )
                                       }
-                                      className="text-gray-500  transition-colors"
+                                      className="text-gray-500  transition-colors cursor-pointer"
                                       title="Copy Project URL"
                                     >
                                       {copiedProjectUrl === project.id ? (
@@ -776,13 +815,13 @@ const UserDashboard = ({ user, onLogout }) => {
                                 <div className="flex items-center justify-end gap-4">
                                   <button
                                     onClick={() => handleProjectClick(project)}
-                                    className="text-gray-700 hover:text-gray-500 transition-colors text-md font-medium"
+                                    className="text-gray-500 hover:text-gray-700 transition-colors text-md font-medium cursor-pointer"
                                   >
                                     View
                                   </button>
                                   <button
                                     onClick={() => handleEditProject(project)}
-                                    className="text-gray-600 hover:text-gray-500 transition-colors"
+                                    className="text-gray-600 hover:text-gray-500 transition-colors cursor-pointer"
                                     title="Edit project"
                                   >
                                     <Edit2 className="w-5 h-5" />
@@ -791,7 +830,7 @@ const UserDashboard = ({ user, onLogout }) => {
                                     onClick={() =>
                                       handleDeleteProject(project.id)
                                     }
-                                    className="text-gray-600 hover:text-red-400 transition-colors"
+                                    className="text-gray-600 hover:text-red-400 transition-colors cursor-pointer"
                                     title="Delete project"
                                   >
                                     <Trash2 className="w-5 h-5" />
@@ -874,7 +913,9 @@ const UserDashboard = ({ user, onLogout }) => {
                     addEnvironmentToProject(selectedProject.id, envName);
                   }}
                   onRemoveEnvironment={(envName) => {
-                    const updated = projectEnvironments.filter(e => e !== envName);
+                    const updated = projectEnvironments.filter(
+                      (e) => e !== envName,
+                    );
                     setProjectEnvironments(updated);
                     removeEnvironmentFromProject(selectedProject.id, envName);
                   }}
@@ -928,7 +969,7 @@ const UserDashboard = ({ user, onLogout }) => {
                                         const url = `http://localhost:3001/${selectedProject.name}${endpoint.name}`;
                                         window.open(url, "_blank");
                                       }}
-                                      className="text-gray-600 transition-colors"
+                                      className="text-gray-600 transition-colors cursor-pointer"
                                       title="Test Endpoint"
                                     >
                                       <Copy className="w-4 h-4" />
@@ -942,12 +983,12 @@ const UserDashboard = ({ user, onLogout }) => {
                                     endpoint.method === "GET"
                                       ? "bg-green-600 border-green-600"
                                       : endpoint.method === "POST"
-                                      ? "bg-[#7e57ffff] border-[#7e57ffff]"
-                                      : endpoint.method === "PUT"
-                                      ? "bg-yellow-500 border-yellow-500"
-                                      : endpoint.method === "DELETE"
-                                      ? "bg-red-600 border-red-600"
-                                      : "bg-gray-500 border-gray-500"
+                                        ? "bg-[#7e57ffff] border-[#7e57ffff]"
+                                        : endpoint.method === "PUT"
+                                          ? "bg-yellow-500 border-yellow-500"
+                                          : endpoint.method === "DELETE"
+                                            ? "bg-red-600 border-red-600"
+                                            : "bg-gray-500 border-gray-500"
                                   }`}
                                 >
                                   {endpoint.method}
@@ -964,7 +1005,7 @@ const UserDashboard = ({ user, onLogout }) => {
                                 <div className="flex items-center justify-end gap-3">
                                   <button
                                     onClick={() => handleEditEndpoint(endpoint)}
-                                    className="text-gray-700 hover:text-[#7e57ffff] transition-colors"
+                                    className="text-gray-700 hover:text-[#7e57ffff] transition-colors cursor-pointer"
                                     title="Edit endpoint"
                                   >
                                     <Edit2 className="w-5 h-5" />
@@ -973,7 +1014,7 @@ const UserDashboard = ({ user, onLogout }) => {
                                     onClick={() =>
                                       handleDeleteEndpoint(endpoint.id)
                                     }
-                                    className="text-gray-700 hover:text-red-400 transition-colors"
+                                    className="text-gray-700 hover:text-red-400 transition-colors cursor-pointer"
                                     title="Delete endpoint"
                                   >
                                     <Trash2 className="w-5 h-5" />
@@ -981,7 +1022,7 @@ const UserDashboard = ({ user, onLogout }) => {
                                 </div>
                               </td>
                             </tr>
-                          )
+                          ),
                         )}
                       </tbody>
                     </table>
@@ -991,8 +1032,8 @@ const UserDashboard = ({ user, onLogout }) => {
                 <div className="flex items-center justify-center py-16">
                   <div className="bg-gray-500 rounded-lg p-8 text-center">
                     <p className="text-white text-lg">
-                      You have not created any endpoints yet. Use 'Create New
-                      Endpoint' to create one.
+                      You have not created any endpoints yet. Use 'Endpoint
+                      Rules' to create one.
                     </p>
                   </div>
                 </div>
@@ -1054,7 +1095,7 @@ const UserDashboard = ({ user, onLogout }) => {
           <div className="bg-gray-100 rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto scrollbar-hide shadow-2xl flex flex-col font-sans">
             <div className="p-6 border-b border-gray-700 flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-600">
-                {editingEndpoint ? "Edit Mocking Rule" : "Mocking Rules"}
+                Mocking Rules
               </h2>
               <button
                 onClick={() => {
@@ -1260,6 +1301,137 @@ const UserDashboard = ({ user, onLogout }) => {
                     </div>
                   </div>
 
+                  {/* State Conditions - Beeceptor Style */}
+                  {stateConditions.length > 0 && (
+                    <div className="mt-6 space-y-3 p-4 bg-blue-50 rounded border border-blue-200">
+                      <h4 className="text-sm font-semibold text-gray-800 uppercase tracking-wide mb-3">
+                        State Conditions
+                      </h4>
+                      {stateConditions.map((condition, index) => (
+                        <div
+                          key={index}
+                          className="grid grid-cols-12 gap-3 items-end"
+                        >
+                          {index > 0 && (
+                            <div className="col-span-2 flex justify-end">
+                              <span className="text-sm font-bold text-gray-700 mr-2">
+                                AND
+                              </span>
+                            </div>
+                          )}
+                          <div
+                            className={
+                              index > 0 ? "col-span-10" : "col-span-12"
+                            }
+                          >
+                            <div className="grid grid-cols-12 gap-3 items-end">
+                              <div className="col-span-3">
+                                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
+                                  Variable
+                                </label>
+                                <input
+                                  type="text"
+                                  value={condition.variable}
+                                  onChange={(e) => {
+                                    const updated = [...stateConditions];
+                                    updated[index].variable = e.target.value;
+                                    setStateConditions(updated);
+                                  }}
+                                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm"
+                                  placeholder="counter_name"
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
+                                  Type
+                                </label>
+                                <select
+                                  value={condition.type}
+                                  onChange={(e) => {
+                                    const updated = [...stateConditions];
+                                    updated[index].type = e.target.value;
+                                    updated[index].operator = "";
+                                    setStateConditions(updated);
+                                  }}
+                                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm"
+                                >
+                                  <option value="">Type</option>
+                                  <option value="Data Store">Data Store</option>
+                                  <option value="List">List</option>
+                                  <option value="Counter">Counter</option>
+                                </select>
+                              </div>
+                              <div className="col-span-3">
+                                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
+                                  Condition
+                                </label>
+                                <select
+                                  value={condition.operator}
+                                  onChange={(e) => {
+                                    const updated = [...stateConditions];
+                                    updated[index].operator = e.target.value;
+                                    setStateConditions(updated);
+                                  }}
+                                  disabled={!condition.type}
+                                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm disabled:bg-gray-100"
+                                >
+                                  <option value="">Condition</option>
+                                  {getStateConditionOptions(condition.type).map(
+                                    (option) => (
+                                      <option
+                                        key={option.value}
+                                        value={option.value}
+                                      >
+                                        {option.label}
+                                      </option>
+                                    ),
+                                  )}
+                                </select>
+                              </div>
+                              <div className="col-span-3">
+                                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">
+                                  Value
+                                </label>
+                                <input
+                                  type="text"
+                                  value={condition.value}
+                                  onChange={(e) => {
+                                    const updated = [...stateConditions];
+                                    updated[index].value = e.target.value;
+                                    setStateConditions(updated);
+                                  }}
+                                  disabled={
+                                    !condition.operator ||
+                                    ["exists", "not_exists"].includes(
+                                      condition.operator,
+                                    )
+                                  }
+                                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm disabled:bg-gray-100"
+                                  placeholder="1"
+                                />
+                              </div>
+                              <div className="col-span-1">
+                                <button
+                                  onClick={() => {
+                                    setStateConditions(
+                                      stateConditions.filter(
+                                        (_, i) => i !== index,
+                                      ),
+                                    );
+                                  }}
+                                  className="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
+                                  title="Remove state condition"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Request Conditions */}
                   {requestConditions.length > 0 && (
                     <div className="mt-4 space-y-3">
@@ -1341,7 +1513,7 @@ const UserDashboard = ({ user, onLogout }) => {
                                 }}
                                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm font-mono"
                                 placeholder={getConditionPlaceholder(
-                                  condition.matchType || "path_exact"
+                                  condition.matchType || "path_exact",
                                 )}
                               />
                             </div>
@@ -1448,11 +1620,11 @@ const UserDashboard = ({ user, onLogout }) => {
                               onClick={() => {
                                 setRequestConditions(
                                   requestConditions.filter(
-                                    (_, i) => i !== index
-                                  )
+                                    (_, i) => i !== index,
+                                  ),
                                 );
                               }}
-                              className="text-red-500 hover:text-red-700 transition-colors"
+                              className="text-red-500 hover:text-red-700 transition-colors cursor-pointer"
                               title="Remove condition"
                             >
                               <Trash2 className="w-5 h-5" />
@@ -1476,7 +1648,7 @@ const UserDashboard = ({ user, onLogout }) => {
                           },
                         ]);
                       }}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
                     >
                       + Add State Condition
                     </button>
@@ -1495,125 +1667,25 @@ const UserDashboard = ({ user, onLogout }) => {
                           },
                         ]);
                       }}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
                     >
                       + Add Request Condition
                     </button>
+                    <button
+                      onClick={() =>
+                        setQueryHeaderRuleTrigger((prev) => prev + 1)
+                      }
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                    >
+                      + Add Query & Header Rule
+                    </button>
                   </div>
 
-                  {/* State Conditions - Beeceptor Style */}
-                  {stateConditions.length > 0 && (
-                    <div className="mt-6 space-y-3">
-                      <h4 className="text-md font-semibold text-gray-800 uppercas tracking-wide">
-                        State Conditions
-                      </h4>
-                      {stateConditions.map((condition, index) => (
-                        <div
-                          key={index}
-                          className="grid grid-cols-12 gap-4 items-end p-3 bg-gray-50 rounded border"
-                        >
-                          <div className="col-span-3">
-                            <label className="block text-md font-semibold text-gray-700 mb-2">
-                              Variable Name
-                            </label>
-                            <input
-                              type="text"
-                              value={condition.variable}
-                              onChange={(e) => {
-                                const updated = [...stateConditions];
-                                updated[index].variable = e.target.value;
-                                setStateConditions(updated);
-                              }}
-                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm"
-                              placeholder="counter_name"
-                            />
-                          </div>
-                          <div className="col-span-2">
-                            <label className="block text-md font-semibold text-gray-700  mb-2">
-                              Type
-                            </label>
-                            <select
-                              value={condition.type}
-                              onChange={(e) => {
-                                const updated = [...stateConditions];
-                                updated[index].type = e.target.value;
-                                updated[index].operator = ""; // Reset operator when type changes
-                                setStateConditions(updated);
-                              }}
-                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm"
-                            >
-                              <option value="">Type</option>
-                              <option value="Data Store">Data Store</option>
-                              <option value="List">List</option>
-                              <option value="Counter">Counter</option>
-                            </select>
-                          </div>
-                          <div className="col-span-3">
-                            <label className="block text-md font-semibold text-gray-700 mb-2">
-                              Condition
-                            </label>
-                            <select
-                              value={condition.operator}
-                              onChange={(e) => {
-                                const updated = [...stateConditions];
-                                updated[index].operator = e.target.value;
-                                setStateConditions(updated);
-                              }}
-                              disabled={!condition.type}
-                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm disabled:bg-gray-100"
-                            >
-                              <option value="">Condition</option>
-                              {getStateConditionOptions(condition.type).map(
-                                (option) => (
-                                  <option
-                                    key={option.value}
-                                    value={option.value}
-                                  >
-                                    {option.label}
-                                  </option>
-                                )
-                              )}
-                            </select>
-                          </div>
-                          <div className="col-span-3">
-                            <label className="block text-md font-semibold text-gray-700  mb-2">
-                              Value
-                            </label>
-                            <input
-                              type="text"
-                              value={condition.value}
-                              onChange={(e) => {
-                                const updated = [...stateConditions];
-                                updated[index].value = e.target.value;
-                                setStateConditions(updated);
-                              }}
-                              disabled={
-                                !condition.operator ||
-                                ["exists", "not_exists"].includes(
-                                  condition.operator
-                                )
-                              }
-                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm disabled:bg-gray-100"
-                              placeholder="1"
-                            />
-                          </div>
-                          <div className="col-span-1">
-                            <button
-                              onClick={() => {
-                                setStateConditions(
-                                  stateConditions.filter((_, i) => i !== index)
-                                );
-                              }}
-                              className="text-red-500 hover:text-red-700 transition-colors"
-                              title="Remove state condition"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <QueryHeaderRuleBuilder
+                    key={tempActiveId}
+                    endpointId={tempActiveId}
+                    triggerAddRule={queryHeaderRuleTrigger}
+                  />
                 </div>
               </div>
 
@@ -1712,23 +1784,44 @@ const UserDashboard = ({ user, onLogout }) => {
                         </h4>
                         <button
                           onClick={addWeightedResponse}
-                          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                          disabled={weightedResponses.length >= 4}
+                          className={`text-sm font-medium cursor-pointer ${
+                            weightedResponses.length >= 4
+                              ? "text-gray-400 cursor-not-allowed"
+                              : "text-blue-600 hover:text-blue-700"
+                          }`}
                         >
-                          + Add Response
+                          + Add Response {weightedResponses.length >= 4 && "(Max 4)"}
                         </button>
                       </div>
-                      {weightedResponses.map((response, index) => (
-                        <div
-                          key={index}
-                          className="border border-gray-200 rounded p-4 bg-gray-50"
-                        >
+                      
+                      {/* Response Tabs */}
+                      <div className="flex border-b border-gray-200">
+                        {weightedResponses.map((response, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setActiveResponseTab(index)}
+                            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                              activeResponseTab === index
+                                ? "border-blue-500 text-blue-600 bg-blue-50"
+                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                            }`}
+                          >
+                            Response {index + 1} ({response.weight}%)
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Active Response Content */}
+                      {weightedResponses[activeResponseTab] && (
+                        <div className="border border-gray-200 rounded p-4 bg-gray-50">
                           <div className="flex justify-between items-center mb-4">
                             <h5 className="text-sm font-medium text-gray-700">
-                              Response {index + 1}
+                              Response {activeResponseTab + 1}
                             </h5>
                             {weightedResponses.length > 1 && (
                               <button
-                                onClick={() => removeWeightedResponse(index)}
+                                onClick={() => removeWeightedResponse(activeResponseTab)}
                                 className="text-red-500 hover:text-red-700"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1742,12 +1835,14 @@ const UserDashboard = ({ user, onLogout }) => {
                               </label>
                               <input
                                 type="number"
-                                value={response.weight}
+                                min="0"
+                                max="100"
+                                value={weightedResponses[activeResponseTab].weight}
                                 onChange={(e) =>
                                   updateWeightedResponse(
-                                    index,
+                                    activeResponseTab,
                                     "weight",
-                                    e.target.value
+                                    e.target.value,
                                   )
                                 }
                                 className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm"
@@ -1763,12 +1858,13 @@ const UserDashboard = ({ user, onLogout }) => {
                                 <input
                                   type="number"
                                   step="0.01"
-                                  value={response.delay || ""}
+                                  min="0"
+                                  value={weightedResponses[activeResponseTab].delay || ""}
                                   onChange={(e) =>
                                     updateWeightedResponse(
-                                      index,
+                                      activeResponseTab,
                                       "delay",
-                                      e.target.value
+                                      e.target.value,
                                     )
                                   }
                                   className="w-full px-3 py-2 bg-white border border-gray-300 rounded-l text-gray-900 focus:outline-none focus:border-blue-500 text-sm"
@@ -1785,12 +1881,14 @@ const UserDashboard = ({ user, onLogout }) => {
                               </label>
                               <input
                                 type="number"
-                                value={response.status}
+                                min="100"
+                                max="599"
+                                value={weightedResponses[activeResponseTab].status}
                                 onChange={(e) =>
                                   updateWeightedResponse(
-                                    index,
+                                    activeResponseTab,
                                     "status",
-                                    e.target.value
+                                    e.target.value,
                                   )
                                 }
                                 className="w-full px-3 py-2 bg-white border border-gray-300 rounded text-gray-900 focus:outline-none focus:border-blue-500 text-sm"
@@ -1804,12 +1902,12 @@ const UserDashboard = ({ user, onLogout }) => {
                                 Response headers
                               </label>
                               <textarea
-                                value={response.headers}
+                                value={weightedResponses[activeResponseTab].headers}
                                 onChange={(e) =>
                                   updateWeightedResponse(
-                                    index,
+                                    activeResponseTab,
                                     "headers",
-                                    e.target.value
+                                    e.target.value,
                                   )
                                 }
                                 className="w-full h-24 px-3 py-2 bg-gray-900 text-green-400 border border-gray-300 rounded text-sm font-mono focus:outline-none focus:border-blue-500"
@@ -1821,12 +1919,12 @@ const UserDashboard = ({ user, onLogout }) => {
                                 Response body
                               </label>
                               <textarea
-                                value={response.body}
+                                value={weightedResponses[activeResponseTab].body}
                                 onChange={(e) =>
                                   updateWeightedResponse(
-                                    index,
+                                    activeResponseTab,
                                     "body",
-                                    e.target.value
+                                    e.target.value,
                                   )
                                 }
                                 className="w-full h-24 px-3 py-2 bg-gray-900 text-green-400 border border-gray-300 rounded text-sm font-mono focus:outline-none focus:border-blue-500"
@@ -1835,7 +1933,7 @@ const UserDashboard = ({ user, onLogout }) => {
                             </div>
                           </div>
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
 
@@ -1852,7 +1950,7 @@ const UserDashboard = ({ user, onLogout }) => {
                             <button
                               onClick={() =>
                                 setShowContentTypeDropdown(
-                                  !showContentTypeDropdown
+                                  !showContentTypeDropdown,
                                 )
                               }
                               className="flex items-center gap-1"
@@ -1887,40 +1985,11 @@ const UserDashboard = ({ user, onLogout }) => {
                         />
                       </div>
 
-                      {/* Body */}
+                      {/* Body - Always Editable */}
                       <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="text-md font-semibold text-gray-700 ">
-                            Response Body
-                          </label>
-                          {/* <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded cursor-pointer hover:bg-blue-200 relative"> */}
-                          {/* <button
-                              onClick={() =>
-                                setShowDynamicValueDropdown(
-                                  !showDynamicValueDropdown
-                                )
-                              }
-                              className="flex items-center gap-1"
-                            >
-                              Insert Dynamic Value NEW
-                            </button> */}
-                          {/* {showDynamicValueDropdown && (
-                              <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded shadow-xl z-30 py-1 min-w-48">
-                                {dynamicValues.map((item, index) => (
-                                  <button
-                                    key={index}
-                                    onClick={() =>
-                                      insertDynamicValue(item.value)
-                                    }
-                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                  >
-                                    {item.label}
-                                  </button>
-                                ))}
-                              </div>
-                            )} */}
-                          {/* </span> */}
-                        </div>
+                        <label className="text-md font-semibold text-gray-700 mb-2 block">
+                          Response Body
+                        </label>
                         <textarea
                           value={newEndpointBody}
                           onChange={(e) => setNewEndpointBody(e.target.value)}
@@ -1928,6 +1997,58 @@ const UserDashboard = ({ user, onLogout }) => {
                           spellCheck="false"
                         />
                       </div>
+                    </div>
+                  )}
+
+                  {/* File Upload Section - Separate from Response Body */}
+                  {newIsFile && newResponseMode === "single" && (
+                    <div className="mt-6 border-t pt-6">
+                      <h4 className="text-md font-semibold text-gray-700 mb-4">
+                        Send a file/blob (Request Payload)
+                      </h4>
+                      {uploadedFile ? (
+                        <div className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded text-sm">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
+                              <span className="text-blue-600 text-xs font-bold">
+                                {uploadedFile.name
+                                  .split(".")
+                                  .pop()
+                                  ?.toUpperCase()}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900">
+                                {uploadedFile.name}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {(uploadedFile.size / 1024).toFixed(1)} KB •{" "}
+                                {uploadedFile.type}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setUploadedFile(null)}
+                            className="text-red-600 hover:text-red-700 text-sm"
+                          >
+                            Remove file
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={handleFileSelect}
+                          onDragOver={handleDragOver}
+                          onDrop={handleDrop}
+                          className="w-full px-4 py-6 bg-gray-50 border-2 border-dashed border-gray-300 rounded text-sm flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                        >
+                          <div className="text-gray-500 mb-2">
+                            Click to select a file
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            or drag and drop
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1964,11 +2085,13 @@ const UserDashboard = ({ user, onLogout }) => {
                   setNewEndpointDelay("");
                   setNewEndpointStatus("200");
                   setNewEndpointHeaders(
-                    '{\n  "Content-Type": "application/json"\n}'
+                    '{\n  "Content-Type": "application/json"\n}',
                   );
                   setNewEndpointBody('{\n  "status": "Awesome!"\n}');
                   setNewRuleDescription("");
                   setNewResponseMode("single");
+                  setNewIsFile(false);
+                  setUploadedFile(null);
                   setStateConditions([]);
                   setRequestConditions([]);
                   setNewParamName("");
@@ -1987,6 +2110,14 @@ const UserDashboard = ({ user, onLogout }) => {
                   setEditingEndpoint(null);
                   setShowMethodDropdown(false);
                   setOnboardingPrefill(null);
+
+                  // Cleanup temp rules
+                  const currentRules = getQueryHeaderRules();
+                  const filteredRules = currentRules.filter(
+                    (r) => !r.endpointId.startsWith("temp_"),
+                  );
+                  saveQueryHeaderRules(filteredRules);
+                  setTempActiveId(`temp_${Date.now()}`);
                 }}
                 className="px-8 py-2.5 bg-transparent border border-gray-500 text-gray-600 hover:bg-gray-200 rounded font-medium transition-colors"
               >
