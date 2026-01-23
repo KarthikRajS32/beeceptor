@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import {
   Zap,
@@ -46,32 +47,31 @@ const LandingPage = ({
       />
 
       {/* Hero Section */}
-      <section className="min-h-screen flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 bg-white relative overflow-hidden font-sans">
-        {/* Background geometric shape - Centered Purple Circle */}
-        <div className="absolute top-[27em] left-[45em] transform -translate-x-1/2 -translate-y-1/2 w-[340px] h-[340px] bg-blue-100/50 rounded-full pointer-events-none"></div>
-
-        <div className="max-w-5xl mx-auto text-center relative z-10 flex flex-col items-center">
-          <h1 className="text-6xl md:text-8xl font-bold text-gray-900 mb-2 tracking-tight">
-            Unfinished APIs
+      <section className="px-4 sm:px-6 lg:px-8 bg-white">
+        <div className="max-w-4xl mx-auto text-center pt-8 pb-16">
+          <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 mb-6 leading-tight">
+            Mock APIs in seconds,
+            <span className="text-blue-600"> ship faster</span>
           </h1>
-          <h2 className="text-6xl md:text-8xl font-bold text-blue-600 mb-6 tracking-tight">
-            Slowing You Down
-          </h2>
-
-          <p className="text-lg md:text-xl text-gray-600 mb-2 max-w-2xl mx-auto font-light">
-            Deploy mock APIs second. No downloads , no dependence,no delays
-          </p>
-          <p className="text-lg md:text-xl text-gray-600 mb-12 max-w-2xl mx-auto font-light">
-            unlock your frontend, mobile, backend teams instantly.
+          
+          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+            Create mock API endpoints instantly. No setup, no downloads, no delays. 
+            Perfect for frontend development and testing.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full max-w-lg">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <button
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg text-lg font-medium transition-colors w-full sm:w-auto text-nowrap shadow-sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg text-lg font-semibold transition-colors"
               onClick={() => handleAuthenticatedClick(() => {})}
             >
-              create mock server →
+              Create Mock Server
             </button>
+            <Link
+              to="/docs"
+              className="text-gray-600 hover:text-gray-900 px-8 py-3 rounded-lg text-lg font-medium border border-gray-300 hover:border-gray-400 transition-colors"
+            >
+              View Documentation
+            </Link>
           </div>
         </div>
       </section>
@@ -80,11 +80,11 @@ const LandingPage = ({
       <Features />
 
       {/* Features Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white relative z-10">
+      <section className="py-8 px-4 sm:px-6 lg:px-8 bg-white relative z-10">
         <div className="max-w-7xl mx-auto">
           {/* Section Header */}
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-5xl font-bold text-gray-900 mb-6">
+            <h2 className="text-2xl md:text-3xl font-semibold text-gray-900 mb-6 leading-tight">
               Everything You Need to{" "}
               <span className="text-blue-600">Mock APIs</span>
             </h2>
@@ -167,11 +167,11 @@ const LandingPage = ({
       </section>
 
       {/* Start Mocking Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-100 relative z-10">
+      <section className="py-8 px-4 sm:px-6 lg:px-8 bg-gray-100 relative z-10">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Left Column: Text & Steps */}
           <div>
-            <h2 className="text-3xl md:text-5xl font-bold text-gray-900 mb-6">
+            <h2 className="text-2xl md:text-3xl font-semibold text-gray-900 mb-6 leading-tight">
               Start Mocking in{" "}
               <span className="text-blue-600">Under 30 Seconds</span>
             </h2>
@@ -279,7 +279,7 @@ const LandingPage = ({
       </section>
 
       {/* ready to accelerate section */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8 bg-white relative overflow-hidden">
+      <section className="py-8 px-4 sm:px-6 lg:px-8 bg-white relative overflow-hidden">
         {/* Background Glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-100/30 rounded-full blur-[100px] pointer-events-none"></div>
 

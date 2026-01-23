@@ -131,7 +131,7 @@ const Features = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user =
       <div className="max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold text-gray-900 mb-6">
+          <h2 className="text-xl md:text-2xl font-semibold text-gray-900 mb-6 leading-tight">
             Features & <span className="text-blue-600">Use Cases</span>
           </h2>
           <p className="text-gray-600 text-lg md:text-lg max-w-4xl mx-auto">

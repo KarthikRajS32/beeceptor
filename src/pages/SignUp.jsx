@@ -133,7 +133,7 @@ const SignUp = ({ onLoginClick, onSignUpSuccess, isAuthenticated = false, user =
       <Header onLoginClick={onLoginClick} onSignUpClick={() => {}} isAuthenticated={isAuthenticated} user={user} onLogout={onLogout} />
 
       {/* Main Signup Section */}
-      <section className="flex-1 flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 bg-gray-50 relative overflow-hidden pt-34 pb-16">
+      <section className="flex-1 flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 bg-gray-50 relative overflow-hidden pt-8 pb-16">
         {/* Background Glow Effect */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-100/30 rounded-full blur-[100px] pointer-events-none"></div>
 
@@ -142,7 +142,7 @@ const SignUp = ({ onLoginClick, onSignUpSuccess, isAuthenticated = false, user =
           <div className="bg-white border border-gray-200 rounded-lg p-8 md:p-10 shadow-lg">
             {/* Header */}
             <div className="text-center mb-8">
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2 tracking-tight">
+              <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 mb-2 leading-tight">
                 Create Your Account
               </h1>
               <p className="text-gray-800">

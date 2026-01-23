@@ -79,14 +79,14 @@ const Price = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = nu
         onLogout={onLogout}
       />
 
-      <main className="flex-1 pt-32 pb-24 px-4 sm:px-6 lg:px-8 relative">
+      <main className="flex-1 pt-8 pb-24 px-4 sm:px-6 lg:px-8 relative">
         {/* Background Glow Effect */}
         <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-blue-100/40 rounded-full blur-[120px] pointer-events-none"></div>
 
         <div className="max-w-6xl mx-auto relative z-10">
           {/* Hero Section */}
           <div className="text-center mb-20 space-y-6">
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-gray-900">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-gray-900">
               Select a Plan That Power{" "}
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 <br />
@@ -202,7 +202,7 @@ const Price = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = nu
           {/* Subscriptions Section */}
           <div className="space-y-12">
             <div className="text-center space-y-4">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Subscriptions</h2>
+              <h2 className="text-xl md:text-2xl font-semibold text-gray-900">Subscriptions</h2>
               <p className="text-gray-600 font-light">
                 Choose a plan that grows with your projects.
               </p>

@@ -4,9 +4,11 @@ import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import UserDashboard from './pages/UserDashboard';
+import ProjectDetails from './pages/ProjectDetails';
 import EditAccount from './pages/EditAccount';
 import Price from './pages/Price';
 import Features from './pages/Features';
+import Documentation from './pages/Documentation';
 import { Navigate } from 'react-router-dom';
 
 // Protected Route Component
@@ -143,6 +145,17 @@ const AppContent = () => {
         }
       />
       <Route
+        path="/project/:projectId"
+        element={
+          <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <ProjectDetails
+              user={user}
+              onLogout={handleLogout}
+            />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/edit-account"
         element={
           <ProtectedRoute isAuthenticated={isAuthenticated}>
@@ -177,6 +190,18 @@ const AppContent = () => {
             onLoginClick={handleLoginClick}
             onSignUpClick={handleSignUpClick}
             isPage={true}
+          />
+        }
+      />
+      <Route
+        path="/docs"
+        element={
+          <Documentation 
+            onLoginClick={handleLoginClick}
+            onSignUpClick={handleSignUpClick}
+            isAuthenticated={isAuthenticated}
+            user={user}
+            onLogout={handleLogout}
           />
         }
       />

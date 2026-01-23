@@ -98,13 +98,13 @@ const EditAccount = ({ onBack, user, onUpdateUser, onLogout }) => {
               <ArrowLeft className="w-4 h-4" />
               Back to Dashboard
             </button>
-            <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
+            <h1 className="text-2xl font-semibold text-gray-900 leading-tight">Account Settings</h1>
           </div>
 
           <div className="space-y-8">
             {/* Profile Information */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Profile Information</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">Profile Information</h2>
               
               {successMessage && (
                 <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
@@ -142,7 +142,7 @@ const EditAccount = ({ onBack, user, onUpdateUser, onLogout }) => {
 
             {/* Update Email */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Update Email</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Update Email</h2>
               <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
                 <p className="text-blue-800 text-sm">You're currently using a personal email. Consider switching to your work email to collaborate more easily with your team at your company.</p>
               </div>
@@ -171,7 +171,7 @@ const EditAccount = ({ onBack, user, onUpdateUser, onLogout }) => {
 
             {/* Change Password */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Change Password</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Change Password</h2>
               <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
@@ -182,7 +182,7 @@ const EditAccount = ({ onBack, user, onUpdateUser, onLogout }) => {
 
             {/* Delete Account */}
             <div className="bg-white rounded-lg shadow-sm border border-red-200 p-6">
-              <h2 className="text-xl font-semibold text-red-600 mb-4">Delete Account</h2>
+              <h2 className="text-lg font-semibold text-red-600 mb-4">Delete Account</h2>
               
               {!showDeleteSection ? (
                 <button onClick={() => setShowDeleteSection(true)} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
