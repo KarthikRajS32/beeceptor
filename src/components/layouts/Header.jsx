@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "../ui/button";
-import { ChevronDown, User, LogOut, Mail, Settings } from "lucide-react";
+import { ChevronDown, User, LogOut, Mail, Settings, Users } from "lucide-react";
 import { Link, useLocation } from 'react-router-dom';
 
 const Header = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = null, onLogout }) => {
@@ -50,15 +50,15 @@ const Header = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = n
           {/* Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
             <Link 
-              to="/" 
+              to={isAuthenticated ? "/dashboard" : "/"} 
               className={`text-sm font-medium transition-colors duration-200 ${
-                isActive('/') 
+                isActive('/dashboard') || (!isAuthenticated && isActive('/')) 
                   ? 'text-blue-600' 
                   : 'text-gray-700 hover:text-gray-900'
               }`}
               onClick={(e) => e.stopPropagation()}
             >
-              Home
+              Dashboard
             </Link>
             <Link 
               to="/docs" 
@@ -107,8 +107,8 @@ const Header = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = n
                   onClick={toggleDropdown}
                   className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 px-3 py-2 rounded"
                 >
-                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                    <span className="text-white text-xs font-medium">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center shadow-md ring-2 ring-white ring-opacity-20 hover:shadow-lg transition-all duration-200">
+                    <span className="text-white text-sm font-semibold tracking-wide">
                       {user?.name?.charAt(0).toUpperCase() || 'U'}
                     </span>
                   </div>
@@ -119,24 +119,26 @@ const Header = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = n
                 </button>
 
                 {isDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded shadow-lg py-1 z-50">
+                  <div className="absolute right-0 mt-2 w-60 bg-white border border-gray-200 rounded shadow-2xl py-1 z-50">
                     <div className="px-4 py-2 border-b border-gray-100">
                       <p className="text-sm font-medium text-gray-900">{user?.name || "User"}</p>
                       <p className="text-xs text-gray-500">{user?.email || "user@example.com"}</p>
                     </div>
+                    
                     <Link
-                      to="/dashboard"
+                      to="/team-invite"
                       onClick={() => setIsDropdownOpen(false)}
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     >
-                      Dashboard
+                      Team Invite
                     </Link>
+
                     <Link
                       to="/edit-account"
                       onClick={() => setIsDropdownOpen(false)}
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     >
-                      Settings
+                      Edit Account
                     </Link>
                     <button
                       onClick={() => {

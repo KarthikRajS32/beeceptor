@@ -1,6 +1,4 @@
 import React, { useState } from "react";
-import Header from "../components/layouts/Header";
-import Footer from "../components/layouts/Footer";
 import { Eye, EyeOff } from "lucide-react";
 
 const Login = ({ onSignUpClick, onLoginSuccess, isAuthenticated = false, user = null, onLogout }) => {
@@ -102,8 +100,7 @@ const Login = ({ onSignUpClick, onLoginSuccess, isAuthenticated = false, user = 
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header onLoginClick={() => {}} onSignUpClick={onSignUpClick} isAuthenticated={isAuthenticated} user={user} onLogout={onLogout} />
+    <div className="flex flex-col">
 
       {/* Main Login Section */}
       <section className="flex-1 flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 bg-gray-50 relative overflow-hidden pt-8 pb-16">
@@ -247,7 +244,6 @@ const Login = ({ onSignUpClick, onLoginSuccess, isAuthenticated = false, user = 
         </div>
       </section>
 
-      <Footer />
     </div>
   );
 };

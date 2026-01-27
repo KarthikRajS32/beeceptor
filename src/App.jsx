@@ -5,11 +5,14 @@ import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import UserDashboard from './pages/UserDashboard';
 import ProjectDetails from './pages/ProjectDetails';
+import TeamInvite from './pages/TeamInvite';
 import EditAccount from './pages/EditAccount';
 import Price from './pages/Price';
 import Features from './pages/Features';
 import Documentation from './pages/Documentation';
 import { Navigate } from 'react-router-dom';
+import Header from './components/layouts/Header';
+import Footer from './components/layouts/Footer';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, isAuthenticated }) => {
@@ -19,20 +22,44 @@ const ProtectedRoute = ({ children, isAuthenticated }) => {
   return children;
 };
 
+// Layout Component
+const MainLayout = ({ children, isAuthenticated, user, onLoginClick, onSignUpClick, onLogout }) => {
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <Header
+        onLoginClick={onLoginClick}
+        onSignUpClick={onSignUpClick}
+        isAuthenticated={isAuthenticated}
+        user={user}
+        onLogout={onLogout}
+      />
+      <main className="flex-1">
+        {children}
+      </main>
+      <Footer />
+    </div>
+  );
+};
+
 // Main App Component with Router
 const AppContent = () => {
   const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
+  const [projects, setProjects] = useState([]);
 
   // Load authentication state from localStorage on app start
   useEffect(() => {
     const storedAuth = localStorage.getItem('isAuthenticated');
     const storedUser = localStorage.getItem('user');
+    const storedProjects = localStorage.getItem('beeceptor_projects');
     
     if (storedAuth === 'true' && storedUser) {
       setIsAuthenticated(true);
       setUser(JSON.parse(storedUser));
+    }
+    if (storedProjects) {
+      setProjects(JSON.parse(storedProjects));
     }
   }, []);
 
@@ -83,129 +110,150 @@ const AppContent = () => {
   };
 
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={
-          isAuthenticated ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <LandingPage
+    <MainLayout
+      isAuthenticated={isAuthenticated}
+      user={user}
+      onLoginClick={handleLoginClick}
+      onSignUpClick={handleSignUpClick}
+      onLogout={handleLogout}
+    >
+      <Routes>
+        <Route
+          path="/"
+          element={
+            isAuthenticated ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <LandingPage
+                onLoginClick={handleLoginClick}
+                onSignUpClick={handleSignUpClick}
+                isAuthenticated={isAuthenticated}
+                user={user}
+                onAuthenticatedAction={handleAuthenticatedAction}
+                onLogout={handleLogout}
+              />
+            )
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            isAuthenticated ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <Login
+                onSignUpClick={handleSignUpClick}
+                onLoginSuccess={handleLoginSuccess}
+                isAuthenticated={isAuthenticated}
+                user={user}
+                onLogout={handleLogout}
+              />
+            )
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            isAuthenticated ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <SignUp
+                onLoginClick={handleLoginClick}
+                onSignUpSuccess={handleLoginSuccess}
+                isAuthenticated={isAuthenticated}
+                user={user}
+                onLogout={handleLogout}
+              />
+            )
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <UserDashboard
+                user={user}
+                onLogout={handleLogout}
+              />
+            </ProtectedRoute>
+          }
+        />
+        
+        <Route
+          path="/project/:projectName"
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <ProjectDetails
+                user={user}
+                onLogout={handleLogout}
+                />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/team-invite"
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <TeamInvite
+                user={user}
+                onLogout={handleLogout}
+                projects={projects}
+              />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/edit-account"
+          element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <EditAccount
+                user={user}
+                onUpdateUser={handleUpdateUser}
+                onLogout={handleLogout}
+                onBack={() => navigate('/dashboard')}
+              />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pricing"
+          element={
+            <Price
+              isAuthenticated={isAuthenticated}
+              user={user}
+              onLogout={handleLogout}
+              onLoginClick={handleLoginClick}
+              onSignUpClick={handleSignUpClick}
+            />
+          }
+        />
+        <Route
+          path="/features"
+          element={
+            <Features
+              isAuthenticated={isAuthenticated}
+              user={user}
+              onLogout={handleLogout}
+              onLoginClick={handleLoginClick}
+              onSignUpClick={handleSignUpClick}
+              isPage={true}
+            />
+          }
+        />
+        <Route
+          path="/docs"
+          element={
+            <Documentation 
               onLoginClick={handleLoginClick}
               onSignUpClick={handleSignUpClick}
               isAuthenticated={isAuthenticated}
               user={user}
-              onAuthenticatedAction={handleAuthenticatedAction}
               onLogout={handleLogout}
             />
-          )
-        }
-      />
-      <Route
-        path="/login"
-        element={
-          isAuthenticated ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <Login
-              onSignUpClick={handleSignUpClick}
-              onLoginSuccess={handleLoginSuccess}
-              isAuthenticated={isAuthenticated}
-              user={user}
-              onLogout={handleLogout}
-            />
-          )
-        }
-      />
-      <Route
-        path="/signup"
-        element={
-          isAuthenticated ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <SignUp
-              onLoginClick={handleLoginClick}
-              onSignUpSuccess={handleLoginSuccess}
-              isAuthenticated={isAuthenticated}
-              user={user}
-              onLogout={handleLogout}
-            />
-          )
-        }
-      />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute isAuthenticated={isAuthenticated}>
-            <UserDashboard
-              user={user}
-              onLogout={handleLogout}
-            />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/project/:projectId"
-        element={
-          <ProtectedRoute isAuthenticated={isAuthenticated}>
-            <ProjectDetails
-              user={user}
-              onLogout={handleLogout}
-            />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/edit-account"
-        element={
-          <ProtectedRoute isAuthenticated={isAuthenticated}>
-            <EditAccount
-              user={user}
-              onUpdateUser={handleUpdateUser}
-              onLogout={handleLogout}
-              onBack={() => navigate('/dashboard')}
-            />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/pricing"
-        element={
-          <Price
-            isAuthenticated={isAuthenticated}
-            user={user}
-            onLogout={handleLogout}
-            onLoginClick={handleLoginClick}
-            onSignUpClick={handleSignUpClick}
-          />
-        }
-      />
-      <Route
-        path="/features"
-        element={
-          <Features
-            isAuthenticated={isAuthenticated}
-            user={user}
-            onLogout={handleLogout}
-            onLoginClick={handleLoginClick}
-            onSignUpClick={handleSignUpClick}
-            isPage={true}
-          />
-        }
-      />
-      <Route
-        path="/docs"
-        element={
-          <Documentation 
-            onLoginClick={handleLoginClick}
-            onSignUpClick={handleSignUpClick}
-            isAuthenticated={isAuthenticated}
-            user={user}
-            onLogout={handleLogout}
-          />
-        }
-      />
-    </Routes>
+          }
+        />
+      </Routes>
+    </MainLayout>
   );
 };
 

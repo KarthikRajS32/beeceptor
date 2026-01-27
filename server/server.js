@@ -1,26 +1,45 @@
 const express = require("express");
 const cors = require("cors");
+const multer = require("multer");
+const path = require("path");
+const TemplateEngine = require('./templateEngine');
+
 const app = express();
 const PORT = 3001;
 
-// In-memory storage for endpoint rules and request logs
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage, 
+  limits: { fileSize: 50 * 1024 * 1024 } 
+});
+
+// In-memory storage
 let endpointRules = [];
 let requestLogs = [];
+let queryHeaderRules = [];
+let stateStore = {};
+let projectMappings = new Map();
+let analyticsData = new Map(); // key: projectName_method_path, value: { totalCalls, totalResponseTime, errorCount }
+let globalVariables = new Map(); // key: projectName, value: { varName: { envName: value } }
+
+// Initialize template engine
+const templateEngine = new TemplateEngine();
+
+// Helper to normalize project names
+const slugify = (name) => name?.toString().toLowerCase().replace(/\s+/g, '-') || '';
 
 // Middleware
 app.use(cors({
-  origin: '*', // Allow all origins temporarily for debugging
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: false // Disable credentials for wildcard origin
+  credentials: false
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.text());
-app.use(express.raw());
-
-// Project mapping storage for browser access
-let projectMappings = new Map(); // projectId -> projectName
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.text({ limit: '50mb' }));
+app.use(express.raw({ limit: '50mb' }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -28,7 +47,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString(), port: PORT });
 });
 
-// Add preflight OPTIONS handler
+// OPTIONS handler
 app.options('*', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
@@ -36,21 +55,10 @@ app.options('*', (req, res) => {
   res.sendStatus(200);
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Server error:', err);
-  res.status(500).json({ 
-    error: 'Internal server error', 
-    message: err.message,
-    timestamp: new Date().toISOString()
-  });
-});
-
 // API endpoint to save endpoint rules
 app.post("/api/endpoints", (req, res) => {
   try {
     console.log('POST /api/endpoints - Request received');
-    console.log('Request headers:', req.headers);
     console.log('Request body:', JSON.stringify(req.body, null, 2));
     
     const {
@@ -73,6 +81,7 @@ app.post("/api/endpoints", (req, res) => {
       paramValue,
       headerName,
       headerValue,
+      environment,
     } = req.body;
 
     // Validate required fields
@@ -85,7 +94,7 @@ app.post("/api/endpoints", (req, res) => {
       });
     }
 
-    // Store project mapping for browser access
+    // Store project mapping
     if (projectId) {
       projectMappings.set(projectId, projectName);
       console.log('Updated project mapping:', projectId, '->', projectName);
@@ -109,7 +118,7 @@ app.post("/api/endpoints", (req, res) => {
       delay: parseInt(delay) || 0,
       status: parseInt(status) || 200,
       headers: parsedHeaders,
-      body,
+      body: body || '{}',
       stateConditions: stateConditions || [],
       requestConditions: requestConditions || [],
       responseMode: responseMode || "single",
@@ -126,6 +135,7 @@ app.post("/api/endpoints", (req, res) => {
       paramValue: paramValue || "",
       headerName: headerName || "",
       headerValue: headerValue || "",
+      environment: environment || "Default",
     };
 
     console.log('Created rule:', JSON.stringify(rule, null, 2));
@@ -135,7 +145,7 @@ app.post("/api/endpoints", (req, res) => {
     endpointRules = endpointRules.filter(
       (r) =>
         !(
-          r.projectName === projectName &&
+          slugify(r.projectName) === slugify(projectName) &&
           r.method === method.toUpperCase() &&
           r.path === path &&
           r.matchType === matchType
@@ -160,27 +170,51 @@ app.post("/api/endpoints", (req, res) => {
   }
 });
 
+// API endpoint to get all endpoint rules
+app.get("/api/endpoints", (req, res) => {
+  res.json(endpointRules);
+});
+
 // API endpoint to register project mappings for browser access
 app.post("/api/projects/register", (req, res) => {
   const { projectId, projectName } = req.body;
   if (projectId && projectName) {
     projectMappings.set(projectId, projectName);
+    console.log('Registered project mapping:', projectId, '->', projectName);
     res.json({ success: true });
   } else {
     res.status(400).json({ error: "projectId and projectName required" });
   }
 });
 
-// API endpoint to get all endpoint rules
-app.get("/api/endpoints", (req, res) => {
-  res.json(endpointRules);
-});
-
 // API endpoint to get request logs for a project
 app.get("/api/logs/:projectName", (req, res) => {
   const { projectName } = req.params;
-  const projectLogs = requestLogs.filter(log => log.projectName === projectName);
+  const targetSlug = slugify(projectName);
+  const projectLogs = requestLogs.filter(log => slugify(log.projectName) === targetSlug);
   res.json(projectLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+});
+
+// API endpoint to get analytics for a project
+app.get("/api/analytics/:projectName", (req, res) => {
+  const { projectName } = req.params;
+  const targetSlug = slugify(projectName);
+  
+  const projectAnalytics = [];
+  analyticsData.forEach((value, key) => {
+    if (value.projectName === targetSlug) {
+      projectAnalytics.push({
+        environment: value.environment || "Default",
+        method: value.method,
+        path: value.path,
+        totalCalls: value.totalCalls,
+        avgResponseTime: value.totalCalls > 0 ? Math.round(value.totalResponseTime / value.totalCalls) : 0,
+        errorCount: value.errorCount
+      });
+    }
+  });
+  
+  res.json(projectAnalytics);
 });
 
 // API endpoint to delete endpoint rule
@@ -199,49 +233,117 @@ app.put("/api/endpoints/:id", (req, res) => {
     return res.status(404).json({ error: "Endpoint not found" });
   }
 
-  // Update while preserving original ID
   endpointRules[index] = {
     ...endpointRules[index],
     ...req.body,
-    id: endpointRules[index].id  // Force preserve original ID
+    id: endpointRules[index].id
   };
 
   res.json({ success: true, rule: endpointRules[index] });
 });
 
-// Request matching functions
+// State management endpoints
+app.post("/api/state/:variable", (req, res) => {
+  const { variable } = req.params;
+  const { value, action } = req.body;
+
+  if (action === 'set') {
+    stateStore[variable] = value;
+  } else if (action === 'increment') {
+    stateStore[variable] = (parseInt(stateStore[variable]) || 0) + 1;
+  } else if (action === 'decrement') {
+    stateStore[variable] = (parseInt(stateStore[variable]) || 0) - 1;
+  } else if (action === 'delete') {
+    delete stateStore[variable];
+  }
+
+  res.json({ success: true, state: stateStore });
+});
+
+app.get("/api/state", (req, res) => {
+  res.json(stateStore);
+});
+
+app.post("/api/state/reset", (req, res) => {
+  stateStore = {};
+  res.json({ success: true });
+});
+
+// Query/header rules endpoints
+app.post("/api/query-header-rules", (req, res) => {
+  const { rules } = req.body;
+  queryHeaderRules = rules || [];
+  res.json({ success: true });
+});
+
+app.get("/api/query-header-rules/:endpointId", (req, res) => {
+  const { endpointId } = req.params;
+  const rules = queryHeaderRules.filter((r) => r.endpointId === endpointId);
+  res.json(rules);
+});
+
+// Template validation endpoint
+app.post("/api/template/validate", (req, res) => {
+  const { template } = req.body;
+  
+  if (!template) {
+    return res.status(400).json({ error: "Template required" });
+  }
+
+  const validation = templateEngine.validate(template);
+  res.json(validation);
+});
+app.get("/api/variables/:projectName", (req, res) => {
+  const { projectName } = req.params;
+  const projectVars = globalVariables.get(slugify(projectName)) || {};
+  res.json(projectVars);
+});
+
+app.post("/api/variables/:projectName", (req, res) => {
+  const { projectName } = req.params;
+  const { variables } = req.body;
+  
+  if (!variables || typeof variables !== 'object') {
+    return res.status(400).json({ error: "Variables object required" });
+  }
+
+  globalVariables.set(slugify(projectName), variables);
+  console.log(`Updated global variables for project: ${projectName}`);
+  res.json({ success: true, variables: globalVariables.get(slugify(projectName)) });
+});
+
+// Helper functions
 function matchesCondition(rule, req, projectName, endpointPath) {
-  const {
-    matchType,
-    path: matchValue,
-    paramName,
-    paramOperator,
-    paramValue,
-    headerName,
-    headerValue,
-  } = rule;
+  const { matchType, path: matchValue } = rule;
 
   // Check state conditions first
   if (rule.stateConditions && rule.stateConditions.length > 0) {
-    const stateMatches = rule.stateConditions.every((condition) =>
-      matchStateCondition(condition, req)
-    );
-    if (!stateMatches) return false;
+    const allStateConditionsValid = rule.stateConditions.every((condition) => {
+      if (!condition.variable || !condition.type || !condition.operator) {
+        return true;
+      }
+      return matchStateCondition(condition, req);
+    });
+    if (!allStateConditionsValid) return false;
+  }
+
+  // Check request conditions
+  if (rule.requestConditions && rule.requestConditions.length > 0) {
+    const allRequestConditionsValid = rule.requestConditions.every((condition) => {
+      return matchRequestCondition(condition, req);
+    });
+    if (!allRequestConditionsValid) return false;
   }
 
   switch (matchType) {
     case "path_exact":
       return endpointPath === matchValue;
-
     case "path_starts":
       return endpointPath.startsWith(matchValue);
-
     case "path_contains":
       return endpointPath.includes(matchValue);
-
     case "path_template":
       return matchTemplate(endpointPath, matchValue);
-
     case "path_regex":
       try {
         const regex = new RegExp(matchValue);
@@ -249,43 +351,6 @@ function matchesCondition(rule, req, projectName, endpointPath) {
       } catch {
         return false;
       }
-
-    case "body_contains":
-      const bodyStr =
-        typeof req.body === "string"
-          ? req.body
-          : JSON.stringify(req.body || "");
-      return bodyStr.includes(matchValue);
-
-    case "body_param":
-      return matchBodyParamAdvanced(
-        req.body,
-        paramName,
-        paramOperator,
-        paramValue
-      );
-
-    case "body_regex":
-      try {
-        const bodyStr =
-          typeof req.body === "string"
-            ? req.body
-            : JSON.stringify(req.body || "");
-        const regex = new RegExp(matchValue);
-        return regex.test(bodyStr);
-      } catch {
-        return false;
-      }
-
-    case "header_regex":
-      try {
-        const regex = new RegExp(headerValue);
-        const headerVal = req.headers[headerName.toLowerCase()];
-        return headerVal && regex.test(headerVal);
-      } catch {
-        return false;
-      }
-
     default:
       return endpointPath === matchValue;
   }
@@ -301,7 +366,7 @@ function matchTemplate(path, template) {
 
   return templateParts.every((part, index) => {
     if (part.startsWith("{") && part.endsWith("}")) {
-      return true; // Template variable matches any value
+      return true;
     }
     return part === pathParts[index];
   });
@@ -309,13 +374,7 @@ function matchTemplate(path, template) {
 
 function matchStateCondition(condition, req) {
   const { variable, operator, value } = condition;
-
-  // Get state value from request headers (Beeceptor-style state management)
-  const stateValue =
-    req.headers[`x-state-${variable.toLowerCase()}`] ||
-    req.headers[`x-beeceptor-state-${variable.toLowerCase()}`] ||
-    req.query[variable] ||
-    (req.body && req.body[variable]);
+  const stateValue = stateStore[variable];
 
   switch (operator) {
     case "equals":
@@ -323,97 +382,95 @@ function matchStateCondition(condition, req) {
     case "not_equals":
       return stateValue !== value;
     case "contains":
-      return stateValue && stateValue.toString().includes(value);
-    case "starts_with":
-      return stateValue && stateValue.toString().startsWith(value);
-    case "ends_with":
-      return stateValue && stateValue.toString().endsWith(value);
+      return stateValue && String(stateValue).includes(String(value));
     case "exists":
       return stateValue !== undefined && stateValue !== null;
     case "not_exists":
       return stateValue === undefined || stateValue === null;
-    case "greater_than":
-      return parseFloat(stateValue) > parseFloat(value);
-    case "less_than":
-      return parseFloat(stateValue) < parseFloat(value);
     default:
-      return stateValue === value;
+      return false;
   }
 }
 
-function matchBodyParamAdvanced(body, paramName, operator, expectedValue) {
-  if (!body || !paramName) return false;
-
-  let actualValue;
-
-  if (typeof body === "object") {
-    actualValue = body[paramName];
-  } else if (typeof body === "string") {
-    const params = new URLSearchParams(body);
-    actualValue = params.get(paramName);
-  } else {
-    return false;
-  }
-
-  switch (operator) {
-    case "equals":
-      return actualValue === expectedValue;
-    case "contains":
-      return actualValue && actualValue.toString().includes(expectedValue);
-    case "starts_with":
-      return actualValue && actualValue.toString().startsWith(expectedValue);
-    case "exists":
-      return actualValue !== null && actualValue !== undefined;
-    default:
-      return actualValue === expectedValue;
-  }
+function matchRequestCondition(condition, req) {
+  // Implementation for request conditions
+  return true;
 }
 
-function processResponse(rule, req, res) {
-  // Determine which response to use (single or weighted)
-  let response = rule;
-  if (rule.responseMode === "weighted" && rule.weightedResponses && rule.weightedResponses.length > 0) {
-    const totalWeight = rule.weightedResponses.reduce((sum, r) => sum + parseInt(r.weight || 0), 0);
-    let random = Math.random() * totalWeight;
-    for (const weightedResponse of rule.weightedResponses) {
-      random -= parseInt(weightedResponse.weight || 0);
-      if (random <= 0) {
-        response = weightedResponse;
+function processResponse(rule, req, res, projectName, endpointPath) {
+  const startTime = Date.now();
+  let selectedResponse;
+  let delayMs = 0;
+
+  if (rule.responseMode === 'weighted' && rule.weightedResponses && rule.weightedResponses.length > 0) {
+    // Weighted response selection
+    const totalWeight = rule.weightedResponses.reduce((sum, r) => sum + (parseInt(r.weight) || 0), 0);
+    const random = Math.random() * totalWeight;
+    let currentWeight = 0;
+    
+    for (const response of rule.weightedResponses) {
+      currentWeight += parseInt(response.weight) || 0;
+      if (random <= currentWeight) {
+        selectedResponse = {
+          status: parseInt(response.status) || 200,
+          headers: typeof response.headers === 'string' ? JSON.parse(response.headers) : response.headers,
+          body: response.body || '{}'
+        };
+        delayMs = (parseInt(response.delay) || 0) * 1000;
         break;
       }
     }
+    
+    if (!selectedResponse) {
+      const firstResponse = rule.weightedResponses[0];
+      selectedResponse = {
+        status: parseInt(firstResponse.status) || 200,
+        headers: typeof firstResponse.headers === 'string' ? JSON.parse(firstResponse.headers) : firstResponse.headers,
+        body: firstResponse.body || '{}'
+      };
+      delayMs = (parseInt(firstResponse.delay) || 0) * 1000;
+    }
+  } else {
+    // Single response mode
+    selectedResponse = {
+      status: rule.status,
+      headers: rule.headers || {},
+      body: rule.body || '{}'
+    };
+    delayMs = (parseInt(rule.delay) || 0) * 1000;
   }
 
-  // Get delay in seconds and convert to milliseconds
-  const delayMs = (parseInt(response.delay) || 0) * 1000;
-  console.log('Processing response with delay:', response.delay, 'seconds =', delayMs, 'ms');
+  console.log('Processing response with delay:', delayMs, 'ms');
 
-  // Apply delay if specified
   setTimeout(() => {
     // Set response headers
-    const headers = response.headers ? (typeof response.headers === 'string' ? JSON.parse(response.headers) : response.headers) : rule.headers;
-    Object.entries(headers).forEach(([key, value]) => {
+    Object.entries(selectedResponse.headers).forEach(([key, value]) => {
       res.setHeader(key, value);
     });
 
-    // Process dynamic values in response body
-    let responseBody = response.body || rule.body;
+    let responseBody = selectedResponse.body;
+    
+    // Process template with full context
     if (responseBody) {
-      responseBody = responseBody
-        .replace(/{{timestamp}}/g, Date.now())
-        .replace(/{{uuid}}/g, generateUUID())
-        .replace(/{{randomNumber}}/g, Math.floor(Math.random() * 1000000))
-        .replace(/{{currentDate}}/g, new Date().toISOString().split("T")[0])
-        .replace(
-          /{{requestIP}}/g,
-          req.ip || req.connection.remoteAddress || "unknown"
-        );
+      // Build template context
+      const projectVars = globalVariables.get(slugify(projectName)) || {};
+      const currentEnv = rule.environment || "Default";
+      
+      // Get environment-specific global variables
+      const envGlobals = {};
+      Object.entries(projectVars).forEach(([varName, envValues]) => {
+        envGlobals[varName] = envValues[currentEnv] !== undefined ? envValues[currentEnv] : (envValues["Default"] || "");
+      });
+      
+      const context = templateEngine.buildContext(req, currentEnv, envGlobals, stateStore);
+      
+      // Process template
+      responseBody = templateEngine.processTemplate(responseBody, context);
     }
 
     // Send response
-    const status = response.status || rule.status;
-    res.status(status);
-
+    res.status(selectedResponse.status);
+    
     if (responseBody) {
       try {
         const parsedBody = JSON.parse(responseBody);
@@ -424,13 +481,18 @@ function processResponse(rule, req, res) {
     } else {
       res.end();
     }
+    
+    // Update analytics after response is sent
+    const responseTime = Date.now() - startTime;
+    updateAnalytics(projectName, req.method, endpointPath, responseTime, selectedResponse.status, rule.environment || "Default");
   }, delayMs);
 }
 
-function logRequest(req, projectName, endpointPath, status = 200) {
+function logRequest(req, projectName, endpointPath, status = 200, environment = "Default", responseTime = 0) {
   const logEntry = {
     id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-    projectName,
+    projectName: slugify(projectName),
+    environment,
     method: req.method,
     path: endpointPath,
     fullUrl: req.protocol + '://' + req.get('host') + req.originalUrl,
@@ -438,17 +500,41 @@ function logRequest(req, projectName, endpointPath, status = 200) {
     headers: req.headers,
     body: req.body,
     timestamp: new Date().toISOString(),
-    status
+    status,
+    responseTime
   };
   
   requestLogs.push(logEntry);
   
-  // Keep only last 1000 logs to prevent memory issues
   if (requestLogs.length > 1000) {
     requestLogs = requestLogs.slice(-1000);
   }
   
   console.log('Logged request:', req.method, endpointPath);
+}
+
+function updateAnalytics(projectName, method, path, responseTime, status, environment = "Default") {
+  const key = `${slugify(projectName)}_${environment}_${method}_${path}`;
+  
+  if (!analyticsData.has(key)) {
+    analyticsData.set(key, {
+      projectName: slugify(projectName),
+      environment,
+      method,
+      path,
+      totalCalls: 0,
+      totalResponseTime: 0,
+      errorCount: 0
+    });
+  }
+  
+  const analytics = analyticsData.get(key);
+  analytics.totalCalls++;
+  analytics.totalResponseTime += responseTime;
+  
+  if (status >= 400) {
+    analytics.errorCount++;
+  }
 }
 
 function generateUUID() {
@@ -458,8 +544,9 @@ function generateUUID() {
     return v.toString(16);
   });
 }
+
 // Catch-all route for mock API responses
-app.all("*", (req, res) => {
+app.all("*", upload.single('file'), (req, res) => {
   const decodedPath = decodeURIComponent(req.path);
   const urlParts = decodedPath.split("/").filter((part) => part);
 
@@ -469,48 +556,31 @@ app.all("*", (req, res) => {
 
   let projectName, endpointPath;
   
-  // Handle different URL formats:
-  // 1. /project/{projectId}/api/{endpoint} - Browser access format
-  // 2. /{projectName}/{endpointPath} - Direct format
-  if (urlParts[0] === 'project' && urlParts.length >= 4 && urlParts[2] === 'api') {
-    // Format: /project/{projectId}/api/{endpoint}
-    const projectId = urlParts[1];
-    
-    // Look up project name from projectId
-    projectName = projectMappings.get(projectId);
-    if (!projectName) {
-      // Fallback: use projectId as projectName for backward compatibility
-      projectName = projectId;
-    }
-    
-    endpointPath = "/" + urlParts.slice(3).join("/");
-  } else {
-    // Format: /{projectName}/{endpointPath} or /{projectName}
-    projectName = urlParts[0];
-    endpointPath = urlParts.length > 1 ? "/" + urlParts.slice(1).join("/") : "/";
-  }
+  // Handle URL format: /{projectName}/{endpointPath}
+  projectName = urlParts[0];
+  endpointPath = urlParts.length > 1 ? "/" + urlParts.slice(1).join("/") : "/";
 
   console.log('Request:', req.method, decodedPath);
   console.log('Resolved - Project:', projectName, 'Endpoint:', endpointPath);
-  console.log('Available projects:', Array.from(projectMappings.entries()));
 
-  // Find matching endpoint rule - strict project isolation
+  // Find matching endpoint rule
   const rule = endpointRules.find(
     (r) =>
-      r.projectName === projectName &&
+      slugify(r.projectName) === slugify(projectName) &&
       r.method === req.method.toUpperCase() &&
       matchesCondition(r, req, projectName, endpointPath)
   );
 
   console.log('Matched rule:', rule ? `${rule.method} ${rule.path} (delay: ${rule.delay}s)` : 'No match');
+  console.log('Available rules for project:', endpointRules.filter(r => slugify(r.projectName) === slugify(projectName)).map(r => `${r.method} ${r.path}`));
 
   if (!rule) {
-    // Log the request even if no rule matches
-    logRequest(req, projectName, endpointPath, 404);
+    const responseTime = 0;
+    logRequest(req, projectName, endpointPath, 404, "Default", responseTime);
+    updateAnalytics(projectName, req.method, endpointPath, responseTime, 404, "Default");
     
-    // Get available endpoints for this specific project only
     const projectEndpoints = endpointRules
-      .filter(r => r.projectName === projectName)
+      .filter(r => slugify(r.projectName) === slugify(projectName))
       .map(r => `${r.method} ${r.path}`);
     
     return res.status(404).json({
@@ -518,19 +588,25 @@ app.all("*", (req, res) => {
       project: projectName,
       requestedEndpoint: endpointPath,
       availableEndpoints: projectEndpoints.length > 0 ? projectEndpoints : ['No endpoints configured for this project'],
-      supportedFormats: [
-        `/${projectName}{endpoint}`,
-        `/project/{projectId}/api{endpoint}`
-      ],
-      totalProjects: Array.from(new Set(endpointRules.map(r => r.projectName))).length,
       totalEndpoints: endpointRules.filter(r => r.projectName === projectName).length
     });
   }
 
   // Log the request before processing response
-  logRequest(req, projectName, endpointPath, rule.status || 200);
+  const startTime = Date.now();
+  logRequest(req, projectName, endpointPath, rule.status || 200, rule.environment || "Default", 0);
 
-  processResponse(rule, req, res);
+  processResponse(rule, req, res, projectName, endpointPath);
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).json({ 
+    error: 'Internal server error', 
+    message: err.message,
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
@@ -538,6 +614,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
   console.log(`🔧 API endpoints: http://localhost:${PORT}/api/endpoints`);
   console.log(`\n✅ Server is ready to accept requests!\n`);
-  console.log(`🌐 CORS enabled for all origins`);
-  console.log(`📡 Listening on all interfaces (0.0.0.0:${PORT})`);
 });

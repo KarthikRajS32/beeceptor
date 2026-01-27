@@ -11,8 +11,6 @@ import {
   CornerDownRight,
   Check,
 } from "lucide-react";
-import Header from "../components/layouts/Header";
-import Footer from "../components/layouts/Footer";
 import Features from "./Features";
 
 const LandingPage = ({
@@ -37,14 +35,7 @@ const LandingPage = ({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header
-        onLoginClick={onLoginClick}
-        onSignUpClick={onSignUpClick}
-        isAuthenticated={isAuthenticated}
-        user={user}
-        onLogout={onLogout}
-      />
+    <div className="bg-gray-50">
 
       {/* Hero Section */}
       <section className="px-4 sm:px-6 lg:px-8 bg-white">
@@ -330,7 +321,6 @@ const LandingPage = ({
         </div>
       </section>
 
-      <Footer />
     </div>
   );
 };

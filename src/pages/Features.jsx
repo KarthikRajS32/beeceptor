@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import Header from "../components/layouts/Header";
-import Footer from "../components/layouts/Footer";
 
 const Features = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = null, onLogout, isPage = false }) => {
   const [activeFilter, setActiveFilter] = useState("all");
@@ -180,18 +178,10 @@ const Features = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user =
 
   if (isPage) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Header
-          onLoginClick={onLoginClick}
-          onSignUpClick={onSignUpClick}
-          isAuthenticated={isAuthenticated}
-          user={user}
-          onLogout={onLogout}
-        />
+      <div className="bg-gray-50">
         <main className="flex-1">
           <Content />
         </main>
-        <Footer />
       </div>
     );
   }

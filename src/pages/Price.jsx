@@ -1,6 +1,4 @@
 import React, { useState } from "react";
-import Header from "../components/layouts/Header";
-import Footer from "../components/layouts/Footer";
 import { Check } from "lucide-react";
 
 const Price = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = null, onLogout }) => {
@@ -70,14 +68,7 @@ const Price = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = nu
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col font-sans overflow-x-hidden">
-      <Header
-        onLoginClick={onLoginClick}
-        onSignUpClick={onSignUpClick}
-        isAuthenticated={isAuthenticated}
-        user={user}
-        onLogout={onLogout}
-      />
+    <div className="text-gray-900 flex flex-col font-sans overflow-x-hidden">
 
       <main className="flex-1 pt-8 pb-24 px-4 sm:px-6 lg:px-8 relative">
         {/* Background Glow Effect */}
@@ -265,7 +256,6 @@ const Price = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = nu
         </div>
       </main>
 
-      <Footer />
     </div>
   );
 };

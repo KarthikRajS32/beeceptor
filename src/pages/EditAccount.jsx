@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Save, Eye, EyeOff, CheckCircle, AlertTriangle, Trash2 } from 'lucide-react';
-import Header from '../components/layouts/Header';
-import Footer from '../components/layouts/Footer';
 
 const EditAccount = ({ onBack, user, onUpdateUser, onLogout }) => {
   const [formData, setFormData] = useState({
@@ -88,10 +86,9 @@ const EditAccount = ({ onBack, user, onUpdateUser, onLogout }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header isAuthenticated={true} user={user} onLogout={onLogout} />
+    <div className="">
       
-      <div className="pt-24 pb-12 px-4">
+      <div className="pt-10 pb-12 px-4">
         <div className="max-w-2xl mx-auto">
           <div className="mb-8">
             <button onClick={onBack} className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors">
@@ -217,7 +214,6 @@ const EditAccount = ({ onBack, user, onUpdateUser, onLogout }) => {
         </div>
       </div>
 
-      <Footer/>
     </div>
   );
 };

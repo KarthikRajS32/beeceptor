@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import Header from '../components/layouts/Header';
 
 const Documentation = ({ onLoginClick, onSignUpClick, isAuthenticated = false, user = null, onLogout }) => {
   const [activeSection, setActiveSection] = useState('introduction');
@@ -48,14 +47,7 @@ const Documentation = ({ onLoginClick, onSignUpClick, isAuthenticated = false, u
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header 
-        onLoginClick={onLoginClick}
-        onSignUpClick={onSignUpClick}
-        isAuthenticated={isAuthenticated}
-        user={user}
-        onLogout={onLogout}
-      />
+    <div className="">
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
         <div className="flex gap-8">
